@@ -347,6 +347,11 @@ tr.due-soon td { background: #fffbeb !important; }
     </div>
   </div>
   <div class="balance-strip" id="header-balance"></div>
+  <div style="font-size:11px;text-align:right;padding:2px 12px 4px;color:#888;">
+    <span id="sync-status-badge" class="badge bg-secondary ms-1">⚪ ยังไม่ได้ตั้งค่า</span>
+    <span id="sync-last-time" style="margin-left:6px;"></span>
+    <button onclick="SYNC.pull()" style="margin-left:8px;font-size:10px;padding:1px 7px;border:1px solid #ccc;border-radius:4px;background:#f8f9fa;cursor:pointer;" title="ซิงก์ข้อมูลล่าสุดจาก Google Sheets">🔄 ซิงก์</button>
+  </div>
 </div>
 
 <!-- NAV -->
@@ -1474,6 +1479,196 @@ function save() {
   localStorage.setItem('grp2_cash_seq',   DB.cashSeq);
   localStorage.setItem('grp2_daily_seq',  DB.dailySeq);
   localStorage.setItem('grp2_fixed_seq',  DB.fixedSeq);
+  // ส่งข้อมูลขึ้น Google Sheets (ถ้าตั้งค่า GAS_URL ไว้แล้ว)
+  SYNC.queueFullPush();
+}
+
+// ============================================================
+// SYNC ENGINE — Offline-First Google Sheets Sync
+// ============================================================
+
+// ← วาง URL จาก Google Apps Script ที่นี่ หลังจาก Deploy แล้ว
+// ตัวอย่าง: 'https://script.google.com/macros/s/AKfycb.../exec'
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyzY7MG6RrctbYB-fdT03gmXQgYDO25xXPDK926F78WTjTM-0wD5Aoc7llNlsUf9m99Xg/exec';
+
+const SYNC = {
+  _timer: null,
+  _pending: false,   // รอ push อยู่
+
+  // เรียกหลัง save() ทุกครั้ง — debounce 2 วินาที
+  queueFullPush() {
+    if (!GAS_URL) return;
+    if (this._timer) clearTimeout(this._timer);
+    this._timer = setTimeout(() => this.pushAll(), 2000);
+  },
+
+  // Push ข้อมูลทั้งหมดขึ้น Sheets (ทีละ collection)
+  async pushAll() {
+    if (!GAS_URL || !navigator.onLine) {
+      this.setStatus('offline');
+      // เก็บว่ายังค้างอยู่ — จะ push เมื่อเน็ตกลับมา
+      localStorage.setItem('grp2_sync_pending', '1');
+      return;
+    }
+    this.setStatus('syncing');
+    localStorage.removeItem('grp2_sync_pending');
+    try {
+      const collections = {
+        records:      DB.records,
+        whtDocs:      DB.whtDocs,
+        cashflows:    DB.cashflows,
+        categories:   DB.categories,
+        suppliers:    DB.suppliers,
+        vehicles:     DB.vehicles,
+        companies:    DB.companies,
+        dailyReports: DB.dailyReports,
+        fixedItems:   DB.fixedItems,
+        checklist:    DB.checklist,
+        bulkDocs:     DB.bulkDocs,
+      };
+      for (const [key, rows] of Object.entries(collections)) {
+        if (!Array.isArray(rows) || rows.length === 0) continue;
+        await this._post({ action: 'bulkUpsert', sheet: key, data: rows });
+      }
+      // บันทึก sequence numbers ใน Config tab
+      await this._post({ action: 'saveConfig', data: {
+        whtSeq:   DB.whtSeq,
+        recSeq:   DB.recSeq,
+        cashSeq:  DB.cashSeq,
+        dailySeq: DB.dailySeq,
+        fixedSeq: DB.fixedSeq,
+        bulkDocSeq: DB.bulkDocSeq,
+      }});
+      this.setStatus('online');
+    } catch(e) {
+      console.error('SYNC pushAll error:', e);
+      this.setStatus('error');
+      localStorage.setItem('grp2_sync_pending', '1');
+    }
+  },
+
+  // Pull ข้อมูลจาก Sheets มาแทนที่ local (ดึงตอนเปิดเว็บ + ทุก 30 วิ)
+  async pull() {
+    if (!GAS_URL || !navigator.onLine) return;
+    this.setStatus('syncing');
+    try {
+      const res = await fetch(GAS_URL + '?action=getAll', { cache: 'no-store' });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+
+      const d = json.data;
+      const arrayKeys = ['records','whtDocs','cashflows','categories','suppliers',
+                         'vehicles','companies','dailyReports','fixedItems','checklist','bulkDocs'];
+      arrayKeys.forEach(k => {
+        if (Array.isArray(d[k]) && d[k].length > 0) {
+          // คืน files (รูปภาพ) ที่เก็บใน localStorage ให้กับ record จาก Sheets
+          if (k === 'records') {
+            d.records = d.records.map(r => {
+              const local = DB.records.find(lr => String(lr.id) === String(r.id));
+              if (local && local.files && local.files.length) r.files = local.files;
+              return r;
+            });
+          }
+          DB[k] = d[k];
+        }
+      });
+
+      // Restore sequence numbers จาก Config
+      if (d.config) {
+        if (d.config.whtSeq   !== undefined) DB.whtSeq   = parseInt(d.config.whtSeq)   || DB.whtSeq;
+        if (d.config.recSeq   !== undefined) DB.recSeq   = parseInt(d.config.recSeq)   || DB.recSeq;
+        if (d.config.cashSeq  !== undefined) DB.cashSeq  = parseInt(d.config.cashSeq)  || DB.cashSeq;
+        if (d.config.dailySeq !== undefined) DB.dailySeq = parseInt(d.config.dailySeq) || DB.dailySeq;
+        if (d.config.fixedSeq !== undefined) DB.fixedSeq = parseInt(d.config.fixedSeq) || DB.fixedSeq;
+        if (d.config.bulkDocSeq !== undefined) DB.bulkDocSeq = parseInt(d.config.bulkDocSeq) || DB.bulkDocSeq;
+      }
+
+      // บันทึก local ด้วย (แต่ไม่ trigger push ซ้ำ)
+      this._saveLocalOnly();
+      this.setStatus('online');
+      this.updateLastSync();
+      renderCurrentPage();
+    } catch(e) {
+      console.error('SYNC pull error:', e);
+      this.setStatus('error');
+    }
+  },
+
+  // บันทึก localStorage โดยไม่ trigger SYNC.queueFullPush()
+  _saveLocalOnly() {
+    localStorage.setItem('grp2_records',    JSON.stringify(DB.records));
+    localStorage.setItem('grp2_wht',        JSON.stringify(DB.whtDocs));
+    localStorage.setItem('grp2_cashflows',  JSON.stringify(DB.cashflows));
+    localStorage.setItem('grp2_categories', JSON.stringify(DB.categories));
+    localStorage.setItem('grp2_suppliers',  JSON.stringify(DB.suppliers));
+    localStorage.setItem('grp2_vehicles',   JSON.stringify(DB.vehicles));
+    localStorage.setItem('grp2_companies',  JSON.stringify(DB.companies));
+    localStorage.setItem('grp2_daily',      JSON.stringify(DB.dailyReports));
+    localStorage.setItem('grp2_fixed',      JSON.stringify(DB.fixedItems));
+    localStorage.setItem('grp2_checklist',  JSON.stringify(DB.checklist));
+    localStorage.setItem('grp2_bulk_docs',  JSON.stringify(DB.bulkDocs));
+    localStorage.setItem('grp2_wht_seq',    DB.whtSeq);
+    localStorage.setItem('grp2_rec_seq',    DB.recSeq);
+    localStorage.setItem('grp2_cash_seq',   DB.cashSeq);
+    localStorage.setItem('grp2_daily_seq',  DB.dailySeq);
+    localStorage.setItem('grp2_fixed_seq',  DB.fixedSeq);
+    localStorage.setItem('grp2_bulk_seq',   DB.bulkDocSeq);
+  },
+
+  async _post(body) {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'GAS error');
+    return json;
+  },
+
+  setStatus(status) {
+    const el = document.getElementById('sync-status-badge');
+    if (!el) return;
+    const map = {
+      online:  { icon: '🟢', text: 'ซิงก์แล้ว',       cls: 'success' },
+      offline: { icon: '🔴', text: 'ออฟไลน์',          cls: 'danger'  },
+      syncing: { icon: '🔄', text: 'กำลังซิงก์...',    cls: 'warning' },
+      error:   { icon: '⚠️', text: 'ซิงก์ไม่สำเร็จ', cls: 'danger'  },
+      idle:    { icon: '⚪', text: 'ยังไม่ได้ตั้งค่า', cls: 'secondary'},
+    };
+    const s = map[status] || map.idle;
+    el.className = `badge bg-${s.cls} ms-1`;
+    el.textContent = `${s.icon} ${s.text}`;
+  },
+
+  updateLastSync() {
+    const el = document.getElementById('sync-last-time');
+    if (el) el.textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH');
+  },
+}; // end SYNC
+
+// เมื่อเน็ตกลับมา — flush pending changes
+window.addEventListener('online', () => {
+  if (localStorage.getItem('grp2_sync_pending') === '1') SYNC.pushAll();
+  else if (GAS_URL) SYNC.pull();
+});
+window.addEventListener('offline', () => SYNC.setStatus('offline'));
+
+// Pull ทุก 30 วินาที
+setInterval(() => { if (GAS_URL && navigator.onLine) SYNC.pull(); }, 30000);
+
+// เมื่อ user กลับมาที่ tab นี้
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && GAS_URL && navigator.onLine) SYNC.pull();
+});
+
+function renderCurrentPage() {
+  // Re-render หน้าปัจจุบันหลัง pull
+  const active = document.querySelector('.nav-link.active');
+  if (!active) return;
+  const page = active.getAttribute('onclick') || '';
+  const m = page.match(/showPage\('([^']+)'\)/);
+  if (m) showPage(m[1]);
 }
 
 function getDefaultChecklist() {
@@ -1577,6 +1772,13 @@ document.querySelectorAll('.modal-overlay').forEach(el =>
 // INIT
 // ============================================================
 window.onload = function() {
+  // ดึงข้อมูลล่าสุดจาก Google Sheets ตอนเปิดเว็บ
+  if (GAS_URL) {
+    SYNC.setStatus('syncing');
+    SYNC.pull();
+  } else {
+    SYNC.setStatus('idle');
+  }
   checkCalendarAlerts();
   // Set default cal month
   const calMonthEl = document.getElementById('cal-month');
