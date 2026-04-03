@@ -12,7 +12,7 @@
   --primary-light: #2563a8;
   --accent: #e8a020;
   --accent-light: #f5c15e;
-  --bg: #f0f4f9;
+  --bg: #ffffff;
   --card: #ffffff;
   --border: #d0dcea;
   --text: #1e2d40;
@@ -77,7 +77,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 }
 
 /* LAYOUT */
-.main-content { flex: 1; padding: 20px 24px; min-width: 0; max-width: 1300px; }
+.main-content { flex: 1; padding: 20px 24px; min-width: 0; max-width: 100%; }
 .page { display: none; }
 .page.active { display: block; }
 
@@ -89,10 +89,10 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 .card-title {
   font-family: 'Kanit', sans-serif; font-size: 15px; font-weight: 600;
   color: var(--primary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
-  padding-bottom: 10px; border-bottom: 2px solid var(--bg);
+  padding-bottom: 10px; border-bottom: 2px solid #eef1f5;
 }
 .section-divider {
-  background: var(--bg); padding: 8px 12px; border-radius: 7px;
+  background: #f5f7fa; padding: 8px 12px; border-radius: 7px;
   margin: 14px 0 10px; font-weight: 700; font-size: 12px;
   color: var(--primary); border-left: 4px solid var(--accent);
 }
@@ -150,13 +150,26 @@ textarea { min-height: 70px; resize: vertical; }
 .summary-box .s-val.blue { color: var(--info); }
 
 /* TABLES */
-.table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); max-height: 75vh; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; table-layout: auto; }
 thead tr { background: var(--primary); color: white; }
-th { padding: 9px 10px; text-align: left; font-weight: 600; white-space: nowrap; }
-td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+thead { position: sticky; top: 0; z-index: 10; }
+th { padding: 6px 6px; text-align: left; font-weight: 600; white-space: nowrap; font-size: 11px; }
+td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: #f5f8ff; }
+
+/* BACK TO TOP */
+.btn-back-top {
+  position: fixed; bottom: 24px; right: 24px; z-index: 99;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--primary); color: white; border: none;
+  font-size: 20px; cursor: pointer; display: none;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.25);
+  align-items: center; justify-content: center;
+  transition: opacity 0.2s;
+}
+.btn-back-top:hover { background: var(--primary-light); }
 
 /* BADGES */
 .badge {
@@ -377,6 +390,22 @@ tr.due-soon td { background: #fffbeb !important; }
 <div id="page-record" class="page active">
   <div class="card">
     <div class="card-title">📝 บันทึกรายการจ่ายใหม่</div>
+
+    <!-- ปุ่มสแกนเอกสาร AI -->
+    <div style="background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1px dashed #60a5fa;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div style="font-size:24px">🤖</div>
+      <div style="flex:1;min-width:200px">
+        <div style="font-weight:700;font-size:13px;color:var(--primary)">สแกนเอกสารอัตโนมัติ (AI)</div>
+        <div style="font-size:11px;color:var(--text-muted)">ถ่ายรูปหรือสแกนใบกำกับภาษี/ใบเสร็จ แล้ว AI จะอ่านข้อมูลกรอกให้อัตโนมัติ</div>
+      </div>
+      <div class="file-upload-area" style="margin:0;padding:8px 16px;min-height:auto;flex:none;cursor:pointer" onclick="document.getElementById('ai-scan-input').click()">
+        📷 เลือกรูป/สแกน
+        <input type="file" id="ai-scan-input" accept="image/*" style="display:none" onchange="aiScanDocument(this)">
+      </div>
+      <div id="ai-scan-status" style="display:none;font-size:12px;color:var(--info);width:100%"></div>
+      <div id="ai-scan-preview" style="display:none;width:100%"></div>
+    </div>
+
     <div class="section-divider">ข้อมูลพื้นฐาน</div>
     <div class="form-grid-4">
       <div class="form-group">
@@ -672,6 +701,7 @@ tr.due-soon td { background: #fffbeb !important; }
         <tbody id="receive-tbody"></tbody>
       </table>
     </div>
+    <div class="pagination" id="receive-pagination"></div>
   </div>
 </div>
 
@@ -707,6 +737,7 @@ tr.due-soon td { background: #fffbeb !important; }
         <tbody id="ledger-tbody"></tbody>
       </table>
     </div>
+    <div class="pagination" id="ledger-pagination"></div>
   </div>
 </div>
 
@@ -728,42 +759,51 @@ tr.due-soon td { background: #fffbeb !important; }
       <div class="form-group"><label>วันที่เริ่ม</label><input type="date" id="f-from" onchange="filterRecords()"></div>
       <div class="form-group"><label>วันที่สิ้นสุด</label><input type="date" id="f-to" onchange="filterRecords()"></div>
       <div class="form-group"><label>ค้นหา</label><input type="text" id="f-kw" placeholder="supplier / รายการ..." oninput="filterRecords()"></div>
+      <div class="form-group"><label>สถานะใบกำกับ</label><select id="f-taxstatus" onchange="filterRecords()"><option value="">ทั้งหมด</option><option value="notax">ยังไม่มีเลขใบกำกับ</option><option value="hastax">มีเลขใบกำกับแล้ว</option></select></div>
       <div class="form-group"><label>เลขที่ใบกำกับภาษี</label><input type="text" id="f-taxinv" placeholder="เลขใบกำกับ..." oninput="filterRecords()"></div>
       <button class="btn btn-outline btn-sm" onclick="clearFilters()">↺ ล้าง</button>
       <button class="btn btn-accent btn-sm" onclick="exportExcel()">📥 Excel</button>
+      <button class="btn btn-outline btn-sm" onclick="printExpenseSummary()">🖨️ พิมพ์สรุปค่าใช้จ่าย</button>
     </div>
-    <div id="notax-alert" class="alert alert-warning" style="display:none;">
-      ⚠️ <span id="notax-alert-text"></span>
+    <div id="notax-alert" class="alert alert-warning" style="display:none;cursor:pointer" onclick="filterNoTaxOnly()">
+      ⚠️ <span id="notax-alert-text"></span> <strong style="margin-left:8px;text-decoration:underline">👉 คลิกเพื่อดูเฉพาะรายการที่ยังไม่มีเลขใบกำกับ</strong>
     </div>
+    <!-- VAT / No-VAT Tabs -->
     <div id="records-vat-section">
-      <div class="section-divider" id="records-vat-header" style="display:none;">📋 บิล VAT 7%</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>#</th><th>เลขที่</th><th>วันที่</th><th>บริษัท</th><th>ประเภทจ่าย</th>
-            <th>ค่าใช้จ่าย</th><th>Supplier</th><th>รายการ</th><th>ทะเบียน</th>
-            <th style="text-align:right">ก่อน VAT</th><th style="text-align:right">VAT</th>
-            <th style="text-align:right">รวม</th><th>หัก ณ จ่าย</th>
-            <th>เลขใบกำกับ</th><th>สถานะ</th><th>จัดการ</th>
-          </tr></thead>
-          <tbody id="records-tbody"></tbody>
-        </table>
+      <div style="display:flex;gap:0;margin-bottom:0;">
+        <button id="tab-vat" class="inner-tab active" onclick="switchRecordTab('vat')" style="padding:8px 18px;font-size:13px;font-weight:600;border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;background:var(--primary);color:white">📋 บิล VAT 7% <span id="tab-vat-count" style="font-size:11px;opacity:0.8"></span></button>
+        <button id="tab-novat" class="inner-tab" onclick="switchRecordTab('novat')" style="padding:8px 18px;font-size:13px;font-weight:600;border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;background:#f5f7fa;color:var(--text)">📋 บิลไม่มี VAT <span id="tab-novat-count" style="font-size:11px;opacity:0.8"></span></button>
       </div>
-      <div id="records-vat-total-bar" style="display:none;"></div>
-      <div class="section-divider" id="records-novat-header" style="display:none;margin-top:16px;">📋 บิลไม่มี VAT</div>
-      <div class="table-wrap" id="records-novat-wrap" style="display:none;margin-top:0;">
-        <table>
-          <thead><tr>
-            <th>#</th><th>เลขที่</th><th>วันที่</th><th>บริษัท</th><th>ประเภทจ่าย</th>
-            <th>ค่าใช้จ่าย</th><th>Supplier</th><th>รายการ</th><th>ทะเบียน</th>
-            <th style="text-align:right">ก่อน VAT</th><th style="text-align:right">VAT</th>
-            <th style="text-align:right">รวม</th><th>หัก ณ จ่าย</th>
-            <th>เลขใบกำกับ</th><th>สถานะ</th><th>จัดการ</th>
-          </tr></thead>
-          <tbody id="records-novat-tbody"></tbody>
-        </table>
+      <div id="records-vat-panel">
+        <div class="table-wrap" style="border-radius:0 8px 8px 8px">
+          <table>
+            <thead><tr>
+              <th style="width:28px">#</th><th>เลขที่</th><th>วันที่</th><th>บริษัท</th><th>จ่าย</th>
+              <th>ค่าใช้จ่าย</th><th>Supplier</th><th>รายการ</th><th>ทะเบียน</th>
+              <th style="text-align:right">ก่อนVAT</th><th style="text-align:right">VAT</th>
+              <th style="text-align:right">รวม</th><th>หักณจ่าย</th>
+              <th>เลขใบกำกับ</th><th>วันที่ใบกำกับ</th><th>สถานะ</th><th style="width:55px">จัดการ</th>
+            </tr></thead>
+            <tbody id="records-tbody"></tbody>
+          </table>
+        </div>
+        <div id="records-vat-total-bar" style="display:none;"></div>
       </div>
-      <div id="records-novat-total-bar" style="display:none;"></div>
+      <div id="records-novat-panel" style="display:none;">
+        <div class="table-wrap" style="border-radius:0 8px 8px 8px">
+          <table>
+            <thead><tr>
+              <th style="width:28px">#</th><th>เลขที่</th><th>วันที่</th><th>บริษัท</th><th>จ่าย</th>
+              <th>ค่าใช้จ่าย</th><th>Supplier</th><th>รายการ</th><th>ทะเบียน</th>
+              <th style="text-align:right">ก่อนVAT</th><th style="text-align:right">VAT</th>
+              <th style="text-align:right">รวม</th><th>หักณจ่าย</th>
+              <th>เลขใบกำกับ</th><th>วันที่ใบกำกับ</th><th>สถานะ</th><th style="width:55px">จัดการ</th>
+            </tr></thead>
+            <tbody id="records-novat-tbody"></tbody>
+          </table>
+        </div>
+        <div id="records-novat-total-bar" style="display:none;"></div>
+      </div>
     </div>
     <div class="pagination" id="pagination"></div>
   </div>
@@ -849,14 +889,15 @@ tr.due-soon td { background: #fffbeb !important; }
   </div>
   <div id="wht-list-tab">
     <div class="filter-bar">
-      <div class="form-group"><label>บริษัท</label><select id="wf-company" onchange="renderWHTList()"><option value="">ทั้งหมด</option><option value="GR">กู๊ด แอนด์ ริช</option><option value="BEST">เดอะ เบสท์</option></select></div>
-      <div class="form-group"><label>เดือน</label><input type="month" id="wf-month" onchange="renderWHTList()"></div>
-      <div class="form-group"><label>ประเภท</label><select id="wf-type" onchange="renderWHTList()"><option value="">ทั้งหมด</option><option value="3">ภงด.3</option><option value="53">ภงด.53</option></select></div>
+      <div class="form-group"><label>บริษัท</label><select id="wf-company" onchange="renderWHTList(true)"><option value="">ทั้งหมด</option><option value="GR">กู๊ด แอนด์ ริช</option><option value="BEST">เดอะ เบสท์</option></select></div>
+      <div class="form-group"><label>เดือน</label><input type="month" id="wf-month" onchange="renderWHTList(true)"></div>
+      <div class="form-group"><label>ประเภท</label><select id="wf-type" onchange="renderWHTList(true)"><option value="">ทั้งหมด</option><option value="3">ภงด.3</option><option value="53">ภงด.53</option></select></div>
+      <div class="form-group"><label>ค้นหา Supplier</label><input type="text" id="wf-supplier" placeholder="พิมพ์ชื่อ Supplier..." oninput="renderWHTList(true)"></div>
     </div>
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>เลขที่ใบหัก</th><th>วันที่</th><th>บริษัทผู้จ่าย</th>
+          <th style="width:28px">#</th><th>เลขที่ใบหัก</th><th>วันที่</th><th>บริษัทผู้จ่าย</th>
           <th>Supplier</th><th>ประเภท</th><th>อัตรา</th>
           <th style="text-align:right">ยอดก่อนหัก</th>
           <th style="text-align:right">ยอดหัก</th>
@@ -865,6 +906,7 @@ tr.due-soon td { background: #fffbeb !important; }
         <tbody id="wht-tbody"></tbody>
       </table>
     </div>
+    <div class="pagination" id="wht-pagination"></div>
   </div>
   <div id="wht-monthly-tab" style="display:none">
     <div class="filter-bar">
@@ -943,6 +985,7 @@ tr.due-soon td { background: #fffbeb !important; }
         <tbody id="daily-tbody"></tbody>
       </table>
     </div>
+    <div class="pagination" id="daily-pagination"></div>
   </div>
 </div>
 
@@ -970,7 +1013,9 @@ tr.due-soon td { background: #fffbeb !important; }
 
   <!-- Supplier -->
   <div id="master-supplier">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;">
+      <button class="btn btn-accent btn-sm" onclick="document.getElementById('import-supplier-file').click()">📥 นำเข้าจาก Excel</button>
+      <input type="file" id="import-supplier-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importSupplierExcel(this)">
       <button class="btn btn-primary btn-sm" onclick="openSupplierModal()">➕ เพิ่ม Supplier</button>
     </div>
     <div class="table-wrap">
@@ -1080,6 +1125,7 @@ tr.due-soon td { background: #fffbeb !important; }
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modal-view')">ปิด</button>
       <button class="btn btn-danger btn-sm" id="btn-void" style="margin-right:auto">🚫 ยกเลิก</button>
+      <button class="btn btn-outline" id="btn-print-voucher" onclick="printPaymentVoucher(currentViewId)">🖨️ ใบสำคัญจ่าย</button>
       <button class="btn btn-primary" id="btn-edit">✏️ แก้ไข</button>
     </div>
   </div>
@@ -1212,8 +1258,8 @@ tr.due-soon td { background: #fffbeb !important; }
 </div>
 
 <!-- Bulk Cell Pay Modal -->
-<div class="modal-overlay" id="modal-bulk-cell-pay">
-  <div class="modal" style="max-width:560px;width:96%;">
+<div class="modal-overlay" id="modal-bulk-cell-pay" style="z-index:210;">
+  <div class="modal" style="max-width:700px;width:96%;">
     <div class="modal-header">
       <div class="modal-title" id="bcp-modal-title">📋 อัพเดตสถานะ</div>
       <button class="modal-close" onclick="closeModal('modal-bulk-cell-pay')">✕</button>
@@ -1458,8 +1504,118 @@ let DB = {
   fixedSeq: parseInt(localStorage.getItem('grp2_fixed_seq') || '0'),
 };
 
+// ============================================================
+// IndexedDB File Storage — แก้ปัญหา localStorage เต็ม
+// เก็บรูป/ไฟล์แนบใน IndexedDB (รองรับหลายร้อย MB)
+// ============================================================
+const FileStore = {
+  _db: null, _ready: null,
+  init() {
+    if (this._ready) return this._ready;
+    this._ready = new Promise((resolve, reject) => {
+      const req = indexedDB.open('grp2_filestore', 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore('files');
+      req.onsuccess = e => { this._db = e.target.result; resolve(); };
+      req.onerror = e => { console.warn('IndexedDB init failed:', e); resolve(); };
+    });
+    return this._ready;
+  },
+  async put(key, data) {
+    await this.init(); if (!this._db) return;
+    return new Promise((res, rej) => {
+      const tx = this._db.transaction('files', 'readwrite');
+      tx.objectStore('files').put(data, key);
+      tx.oncomplete = () => res();
+      tx.onerror = e => { console.warn('IDB put error:', e); res(); };
+    });
+  },
+  async get(key) {
+    await this.init(); if (!this._db) return undefined;
+    return new Promise((res) => {
+      const tx = this._db.transaction('files', 'readonly');
+      const req = tx.objectStore('files').get(key);
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => res(undefined);
+    });
+  },
+  async delete(key) {
+    await this.init(); if (!this._db) return;
+    return new Promise((res) => {
+      const tx = this._db.transaction('files', 'readwrite');
+      tx.objectStore('files').delete(key);
+      tx.oncomplete = () => res();
+      tx.onerror = () => res();
+    });
+  }
+};
+
+let _fileSeq = parseInt(localStorage.getItem('grp2_file_seq') || '0');
+
+// Assign fileId to files that have data but no ID, then store data in IDB
+function _saveFilesToIDB() {
+  const toStore = [];
+  const process = (arr) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(f => {
+      if (f.data && !f.fileId) f.fileId = 'f' + (++_fileSeq);
+      if (f.data && f.fileId) toStore.push({ key: f.fileId, data: f.data });
+    });
+  };
+  DB.bulkDocs.forEach(bd => process(bd.files));
+  DB.records.forEach(r => process(r.proofFiles));
+  if (toStore.length) {
+    localStorage.setItem('grp2_file_seq', _fileSeq);
+    FileStore.init().then(() => {
+      toStore.forEach(({ key, data }) => FileStore.put(key, data));
+    });
+  }
+}
+
+// Strip base64 data from file arrays for localStorage (keep fileId)
+function _stripFileDataJSON(collection) {
+  return JSON.stringify(collection, function(key, val) {
+    if ((key === 'files' || key === 'proofFiles') && Array.isArray(val)) {
+      return val.map(f => { const c = {...f}; delete c.data; return c; });
+    }
+    return val;
+  });
+}
+
+// Rehydrate file data from IndexedDB after loading from localStorage
+async function rehydrateFiles() {
+  try {
+    await FileStore.init();
+    if (!FileStore._db) return;
+    const loadArr = async (arr) => {
+      if (!Array.isArray(arr)) return;
+      for (const f of arr) {
+        if (f.fileId && !f.data) {
+          const data = await FileStore.get(f.fileId);
+          if (data) f.data = data;
+        }
+      }
+    };
+    for (const bd of DB.bulkDocs) await loadArr(bd.files);
+    for (const r of DB.records) { if (r.proofFiles) await loadArr(r.proofFiles); }
+    // Migrate: if old data had inline base64 in localStorage, move to IDB
+    let migrated = false;
+    const migrateArr = (arr) => {
+      if (!Array.isArray(arr)) return;
+      arr.forEach(f => {
+        if (f.data && !f.fileId) { f.fileId = 'f' + (++_fileSeq); migrated = true; }
+      });
+    };
+    DB.bulkDocs.forEach(bd => migrateArr(bd.files));
+    DB.records.forEach(r => migrateArr(r.proofFiles));
+    if (migrated) { _saveFilesToIDB(); save(); }
+  } catch(e) { console.warn('rehydrateFiles error:', e); }
+}
+
 function save() {
-  localStorage.setItem('grp2_records',    JSON.stringify(DB.records));
+  // Save file data to IndexedDB (async)
+  _saveFilesToIDB();
+  // Save to localStorage WITHOUT base64 file data (prevents QuotaExceededError)
+  localStorage.setItem('grp2_records',    _stripFileDataJSON(DB.records));
   localStorage.setItem('grp2_wht',        JSON.stringify(DB.whtDocs));
   localStorage.setItem('grp2_cashflows',  JSON.stringify(DB.cashflows));
   localStorage.setItem('grp2_categories', JSON.stringify(DB.categories));
@@ -1469,7 +1625,7 @@ function save() {
   localStorage.setItem('grp2_daily',      JSON.stringify(DB.dailyReports));
   localStorage.setItem('grp2_fixed',      JSON.stringify(DB.fixedItems));
   localStorage.setItem('grp2_checklist',  JSON.stringify(DB.checklist));
-  localStorage.setItem('grp2_bulk_docs',  JSON.stringify(DB.bulkDocs));
+  localStorage.setItem('grp2_bulk_docs',  _stripFileDataJSON(DB.bulkDocs));
   localStorage.setItem('grp2_bulk_seq',   DB.bulkDocSeq);
   localStorage.setItem('grp2_debt_status',JSON.stringify(DB.debtStatus));
   localStorage.setItem('grp2_cal_snooze', JSON.stringify(DB.calSnooze));
@@ -1489,7 +1645,11 @@ function save() {
 
 // ← วาง URL จาก Google Apps Script ที่นี่ หลังจาก Deploy แล้ว
 // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycb.../exec'
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyzY7MG6RrctbYB-fdT03gmXQgYDO25xXPDK926F78WTjTM-0wD5Aoc7llNlsUf9m99Xg/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyVjeAZ2zMpHA9IuwjOUdbvmzSQjIPkABtuGMt0TiY1XDwMchSXME77n9D9b8wKpg9Jxg/exec';
+
+// ── Gemini AI API Key (Google AI Studio) ──
+// สมัครฟรีที่: https://aistudio.google.com/app/apikey
+const GEMINI_API_KEY = 'AIzaSyAlXFpqAdGmrJYelm8uafco3XUt9EB0Mmw';
 
 const SYNC = {
   _timer: null,
@@ -1528,7 +1688,15 @@ const SYNC = {
       };
       for (const [key, rows] of Object.entries(collections)) {
         if (!Array.isArray(rows) || rows.length === 0) continue;
-        await this._post({ action: 'bulkUpsert', sheet: key, data: rows });
+        // ตัด files (รูป base64) และ field ที่ใหญ่เกินก่อนส่ง — Google Sheets จำกัด 50,000 ตัวอักษร/เซลล์
+        const cleanRows = rows.map(r => {
+          const c = {...r};
+          delete c.files;
+          // จำกัด editHistory ไม่เกิน 20 รายการล่าสุด
+          if (Array.isArray(c.editHistory) && c.editHistory.length > 20) c.editHistory = c.editHistory.slice(-20);
+          return c;
+        });
+        await this._post({ action: 'bulkUpsert', sheet: key, data: cleanRows });
       }
       // บันทึก sequence numbers ใน Config tab
       await this._post({ action: 'saveConfig', data: {
@@ -1772,6 +1940,10 @@ document.querySelectorAll('.modal-overlay').forEach(el =>
 // INIT
 // ============================================================
 window.onload = function() {
+  // โหลดไฟล์แนบจาก IndexedDB กลับเข้า memory
+  rehydrateFiles().then(() => {
+    console.log('✅ FileStore: rehydration complete');
+  });
   // ดึงข้อมูลล่าสุดจาก Google Sheets ตอนเปิดเว็บ
   if (GAS_URL) {
     SYNC.setStatus('syncing');
@@ -1855,9 +2027,149 @@ function renderHeaderBalance() {
   const bal = computeBalance(null, null);
   document.getElementById('header-balance').innerHTML = `
     <div class="bal-item"><div class="bal-label">รับสะสม</div><div class="bal-val blue">฿${fmt(bal.totalIn)}</div></div>
-    <div class="bal-item"><div class="bal-label">จ่ายออก</div><div class="bal-val red">฿${fmt(bal.totalOut)}</div></div>
+    <div class="bal-item"><div class="bal-label">จ่ายออก</div><div class="bal-val red">฿${fmt(bal.totalOut+bal.totalCreditPay)}</div></div>
     <div class="bal-item"><div class="bal-label">คงเหลือในมือ</div><div class="bal-val ${bal.balance>=0?'green':'red'}">฿${fmt(bal.balance)}</div></div>
   `;
+}
+
+// ============================================================
+// AI SCAN DOCUMENT (Gemini Vision)
+// ============================================================
+async function aiScanDocument(input){
+  if(!input.files||!input.files[0])return;
+  if(!GEMINI_API_KEY){
+    showAlert('⚠️ ยังไม่ได้ตั้งค่า Gemini API Key<br><br>วิธีสมัคร (ฟรี):<br>1. ไปที่ <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a><br>2. กด Create API Key<br>3. วาง Key ในไฟล์ HTML บรรทัด <code>GEMINI_API_KEY</code>',true);
+    input.value='';return;
+  }
+  const file=input.files[0];
+  const statusEl=document.getElementById('ai-scan-status');
+  const previewEl=document.getElementById('ai-scan-preview');
+  statusEl.style.display='block';
+  statusEl.innerHTML='⏳ กำลังอ่านเอกสาร... กรุณารอสักครู่';
+  previewEl.style.display='none';
+
+  try{
+    // Read file as base64
+    const base64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result.split(',')[1]);
+      reader.onerror=reject;
+      reader.readAsDataURL(file);
+    });
+
+    // Show preview
+    if(file.type.startsWith('image/')){
+      previewEl.style.display='block';
+      previewEl.innerHTML=`<img src="data:${file.type};base64,${base64}" style="max-height:120px;border-radius:6px;border:1px solid var(--border)">`;
+    }
+
+    // Call Gemini API
+    const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{parts:[
+          {inlineData:{mimeType:file.type,data:base64}},
+          {text:`คุณเป็นผู้เชี่ยวชาญในการอ่านเอกสารทางบัญชีภาษาไทย กรุณาอ่านข้อมูลจากภาพนี้ (ใบกำกับภาษี/ใบเสร็จรับเงิน/ใบแจ้งหนี้) แล้วส่งข้อมูลกลับมาเป็น JSON เท่านั้น ห้ามมีข้อความอื่น
+
+ส่งกลับเป็น JSON format นี้ (ถ้าอ่านไม่ได้ให้ใส่ null):
+{
+  "supplierName": "ชื่อผู้ขาย/บริษัท",
+  "supplierTaxId": "เลขประจำตัวผู้เสียภาษี 13 หลัก",
+  "supplierAddress": "ที่อยู่ผู้ขาย",
+  "taxInvoiceNo": "เลขที่ใบกำกับภาษี",
+  "taxInvoiceDate": "วันที่ในเอกสาร format YYYY-MM-DD",
+  "description": "รายการสินค้า/บริการ (สรุปสั้นๆ)",
+  "beforeVat": ยอดก่อน VAT เป็นตัวเลข,
+  "vat": ยอด VAT เป็นตัวเลข,
+  "total": ยอดรวมทั้งสิ้น เป็นตัวเลข,
+  "hasVat": true ถ้ามี VAT 7% หรือ false ถ้าไม่มี
+}`}
+        ]}]
+      })
+    });
+
+    if(!resp.ok){
+      const err=await resp.text();
+      throw new Error(`API Error ${resp.status}: ${err.substring(0,200)}`);
+    }
+
+    const data=await resp.json();
+    const text=data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+
+    // Extract JSON from response
+    const jsonMatch=text.match(/\{[\s\S]*\}/);
+    if(!jsonMatch) throw new Error('AI ไม่สามารถอ่านข้อมูลจากเอกสารนี้ได้');
+
+    const parsed=JSON.parse(jsonMatch[0]);
+
+    // Fill form with parsed data
+    aiScanFillForm(parsed);
+
+    // Also add the file as attachment
+    handleFiles({files:[file]},'r-file-preview');
+
+    statusEl.innerHTML=`✅ อ่านเอกสารสำเร็จ! กรุณาตรวจสอบข้อมูลก่อนบันทึก
+      <button class="btn btn-outline btn-xs" style="margin-left:8px" onclick="document.getElementById('ai-scan-status').style.display='none';document.getElementById('ai-scan-preview').style.display='none'">✕ ปิด</button>`;
+
+  }catch(e){
+    console.error('AI Scan error:',e);
+    statusEl.innerHTML=`❌ ${e.message}
+      <button class="btn btn-outline btn-xs" style="margin-left:8px" onclick="document.getElementById('ai-scan-status').style.display='none'">✕ ปิด</button>`;
+  }
+  input.value='';
+}
+
+function aiScanFillForm(d){
+  // Supplier — try to match existing
+  if(d.supplierName){
+    const el=document.getElementById('r-supplier');
+    el.value=d.supplierName;
+    // Try auto-match from DB
+    const match=DB.suppliers.find(s=>
+      s.name.includes(d.supplierName)||d.supplierName.includes(s.name)||
+      (d.supplierTaxId&&s.taxId===d.supplierTaxId)
+    );
+    if(match){
+      el.value=match.name;
+      document.getElementById('r-supplier-id').value=match.id;
+      document.getElementById('r-payee-tax-id').value=match.taxId||d.supplierTaxId||'';
+      // Auto-set WHT from supplier defaults
+      if(match.defaultWhtType&&document.getElementById('r-wht-type')){
+        document.getElementById('r-wht-type').value=match.defaultWhtType;
+      }
+      if(match.defaultWhtRate&&document.getElementById('r-wht-rate')){
+        document.getElementById('r-wht-rate').value=match.defaultWhtRate;
+      }
+    } else {
+      document.getElementById('r-payee-tax-id').value=d.supplierTaxId||'';
+    }
+  }
+
+  // Tax invoice
+  if(d.taxInvoiceNo) document.getElementById('r-tax-invoice-no').value=d.taxInvoiceNo;
+  if(d.taxInvoiceDate) document.getElementById('r-tax-invoice-date').value=d.taxInvoiceDate;
+
+  // Description
+  if(d.description) document.getElementById('r-description').value=d.description;
+
+  // Amounts
+  if(d.beforeVat!=null&&d.beforeVat>0){
+    document.getElementById('r-before-vat').value=d.beforeVat;
+  }
+  // VAT toggle
+  const vatSel=document.getElementById('r-vat-type');
+  if(vatSel){
+    if(d.hasVat===false||(!d.vat||d.vat<=0)){
+      vatSel.value='none';
+    } else {
+      vatSel.value='exclude';
+    }
+  }
+  // Trigger calculation
+  if(typeof calcAmounts==='function') calcAmounts();
+
+  showToast('🤖 AI กรอกข้อมูลแล้ว — กรุณาตรวจสอบก่อนบันทึก');
 }
 
 // ============================================================
@@ -2025,7 +2337,7 @@ function saveRecord() {
     beforeVat:bv, vat, total,
     taxInvoiceNo:document.getElementById('r-tax-invoice-no').value,
     taxInvoiceDate:document.getElementById('r-tax-invoice-date').value,
-    whtYn, whtRate:whtYn==='yes'?whtRate:0, whtAmount, netPay,
+    whtYn, whtType:whtYn==='yes'?document.getElementById('r-wht-type').value:'', whtRate:whtYn==='yes'?whtRate:0, whtAmount, netPay,
     plate:document.getElementById('r-plate').value||'',
     mileage:document.getElementById('r-mileage')?.value||'',
     proofType:document.getElementById('r-proof-type').value,
@@ -2039,8 +2351,8 @@ function saveRecord() {
     editHistory:[], createdAt:new Date().toISOString()
   };
 
-  // WHT
-  if(whtYn==='yes'&&whtAmount>0) {
+  // WHT — สำหรับเครดิต จะออกใบหัก ณ ที่จ่ายตอนทำใบรวมจ่ายแทน
+  if(whtYn==='yes'&&whtAmount>0&&paytype!=='credit') {
     DB.whtSeq++;
     const d2=new Date(date);
     const whtNo=`WHT-${d2.getFullYear()}${String(d2.getMonth()+1).padStart(2,'0')}-${String(DB.whtSeq).padStart(4,'0')}`;
@@ -2049,7 +2361,7 @@ function saveRecord() {
       date, company, supplier: rec.supplier, supplierId:rec.supplierId,
       payeeTaxId:rec.payeeTaxId,
       whtType:document.getElementById('r-wht-type').value, whtRate,
-      baseAmount:bv, whtAmount, description:desc,
+      baseAmount:bv, vatAmount:vat, totalAmount:total, whtAmount, description:desc,
       status:'active', editHistory:[], createdAt:new Date().toISOString()
     });
     rec.whtDocId=DB.whtSeq;
@@ -2062,6 +2374,25 @@ function saveRecord() {
   clearForm();
   renderHeaderBalance();
   updateNavBadges();
+
+  // แสดง popup ถามพิมพ์ใบสำคัญจ่าย (เครดิตจะออกได้ตอนทำใบรวมจ่ายเท่านั้น)
+  setTimeout(()=>{
+    if(paytype==='credit'){
+      showAlert(`✅ บันทึก <strong>${no}</strong> เรียบร้อยแล้ว<br><span style="font-size:12px;color:var(--text-muted)">(รายการเครดิต — ใบสำคัญจ่ายจะออกได้เมื่อทำรวมยอดจ่าย Supplier)</span>`);
+    } else {
+      document.getElementById('modal-alert-content').innerHTML =
+        `<div style="font-size:26px;margin-bottom:8px">✅</div>บันทึก <strong>${no}</strong> เรียบร้อยแล้ว<br><br>🖨️ ต้องการพิมพ์ใบสำคัญจ่ายหรือไม่?`;
+      const cancelBtn=document.getElementById('alert-cancel');
+      const confirmBtn=document.getElementById('alert-confirm');
+      cancelBtn.style.display='';
+      cancelBtn.textContent='ไม่พิมพ์';
+      confirmBtn.textContent='🖨️ พิมพ์ใบสำคัญจ่าย';
+      confirmBtn.className='btn btn-primary';
+      confirmBtn.onclick=()=>{closeModal('modal-alert');printPaymentVoucher(rec.id);};
+      cancelBtn.onclick=()=>{closeModal('modal-alert');cancelBtn.textContent='ยกเลิก';};
+      openModal('modal-alert');
+    }
+  },300);
 }
 
 function clearForm() {
@@ -2218,7 +2549,25 @@ document.addEventListener('click', e=>{
 // ============================================================
 // RECORDS TABLE
 // ============================================================
-let filteredRecs=[], currentPage=1, perPage=25;
+let filteredRecs=[], currentPage=1, perPage=15, currentRecordTab='vat';
+
+function switchRecordTab(tab){
+  currentRecordTab=tab;
+  currentPage=1;
+  document.getElementById('tab-vat').style.background=tab==='vat'?'var(--primary)':'#f5f7fa';
+  document.getElementById('tab-vat').style.color=tab==='vat'?'white':'var(--text)';
+  document.getElementById('tab-novat').style.background=tab==='novat'?'var(--primary)':'#f5f7fa';
+  document.getElementById('tab-novat').style.color=tab==='novat'?'white':'var(--text)';
+  document.getElementById('records-vat-panel').style.display=tab==='vat'?'':'none';
+  document.getElementById('records-novat-panel').style.display=tab==='novat'?'':'none';
+  renderRecordsTable();
+}
+
+function filterNoTaxOnly(){
+  document.getElementById('f-taxstatus').value='notax';
+  filterRecords();
+  showToast('กรองเฉพาะรายการที่ยังไม่มีเลขใบกำกับภาษี');
+}
 
 function filterRecords() {
   currentPage=1;
@@ -2230,6 +2579,7 @@ function filterRecords() {
   const ft=document.getElementById('f-to').value;
   const fkw=document.getElementById('f-kw').value.toLowerCase();
   const ftaxinv=(document.getElementById('f-taxinv')?.value||'').toLowerCase();
+  const ftaxstatus=document.getElementById('f-taxstatus')?.value||'';
 
   filteredRecs=DB.records.filter(r=>{
     if(fc&&r.company!==fc)return false;
@@ -2240,6 +2590,8 @@ function filterRecords() {
     if(ft&&r.date>ft)return false;
     if(fkw&&!r.supplier.toLowerCase().includes(fkw)&&!r.description.toLowerCase().includes(fkw)&&!r.no.toLowerCase().includes(fkw))return false;
     if(ftaxinv&&!(r.taxInvoiceNo||'').toLowerCase().includes(ftaxinv))return false;
+    if(ftaxstatus==='notax'&&r.taxInvoiceNo)return false;
+    if(ftaxstatus==='hastax'&&!r.taxInvoiceNo)return false;
     return true;
   }).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
 
@@ -2267,149 +2619,130 @@ function buildRecordRow(r, seq) {
   const noTax=r.status==='active'&&!r.taxInvoiceNo;
   const isVoid=r.status==='void';
   const edited=r.editHistory&&r.editHistory.length>0;
-  return `<tr class="${isVoid?'':''}" ${isVoid?'style="opacity:0.5"':''}>
-    <td style="color:var(--text-muted);font-size:11px">${seq}</td>
-    <td style="font-weight:600;color:var(--primary);font-size:11.5px">${r.no}${edited?'<span class="edited-dot" title="เคยแก้ไข"></span>':''}</td>
-    <td style="white-space:nowrap">${fmtDate(r.date)}</td>
-    <td style="font-size:11px">${compShort(r.company)}</td>
-    <td><span class="badge badge-${r.paytype}">${payLabel[r.paytype]||r.paytype}</span></td>
-    <td style="font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.categoryName}</td>
-    <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.supplier}</td>
-    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${r.description}">${r.description}</td>
-    <td>${r.plate?`<span class="plate-tag">${r.plate}</span>`:'-'}</td>
-    <td style="text-align:right">${fmt(r.beforeVat)}</td>
-    <td style="text-align:right">${fmt(r.vat)}</td>
-    <td style="text-align:right;font-weight:700">${fmt(r.total)}</td>
-    <td>${r.whtAmount>0?`<span class="badge badge-wht">฿${fmt(r.whtAmount)}</span>`:'-'}</td>
-    <td style="font-size:11.5px">${noTax?'<span class="badge badge-warn">⚠️ ยังไม่ได้รับ</span>':r.taxInvoiceNo||'-'}</td>
-    <td>${isVoid?'<span class="badge badge-void">ยกเลิก</span>':r.paytype==='credit'?`<span class="badge badge-${r.creditStatus==='paid'?'ok':'wht'}">${r.creditStatus==='paid'?'✅จ่ายแล้ว':'⏳ค้าง'}</span>`:'<span style="color:var(--success);font-size:11px">✓</span>'}</td>
+  return `<tr ${isVoid?'style="opacity:0.5"':''}>
+    <td style="color:var(--text-muted);font-size:10px;width:28px;text-align:center">${seq}</td>
+    <td style="font-weight:600;color:var(--primary);font-size:10.5px;white-space:nowrap">${r.no}${edited?'<span class="edited-dot" title="เคยแก้ไข"></span>':''}</td>
+    <td style="white-space:nowrap;font-size:10.5px">${fmtDate(r.date)}</td>
+    <td style="font-size:10px">${compShort(r.company)}</td>
+    <td><span class="badge badge-${r.paytype}" style="font-size:10px;padding:1px 5px">${payLabel[r.paytype]||r.paytype}</span></td>
+    <td style="font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.categoryName}">${r.categoryName}</td>
+    <td style="font-size:10.5px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.supplier}">${r.supplier}</td>
+    <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px" title="${r.description}">${r.description}</td>
+    <td style="font-size:10px">${r.plate?`<span class="plate-tag" style="font-size:10px;padding:1px 4px">${r.plate}</span>`:'-'}</td>
+    <td style="text-align:right;font-size:11px;white-space:nowrap">${fmt(r.beforeVat)}</td>
+    <td style="text-align:right;font-size:11px;white-space:nowrap">${fmt(r.vat)}</td>
+    <td style="text-align:right;font-weight:700;font-size:11px;white-space:nowrap">${fmt(r.total)}</td>
+    <td style="font-size:10px">${r.whtAmount>0?`<span style="color:var(--warning);font-size:10px">฿${fmt(r.whtAmount)}</span>`:'-'}</td>
+    <td style="font-size:10px;max-width:85px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${noTax?'<span class="badge badge-warn" style="font-size:9px;padding:1px 4px">⚠️ ยังไม่ได้รับ</span>':r.taxInvoiceNo||'-'}</td>
+    <td style="font-size:10px;white-space:nowrap">${r.taxInvoiceDate?fmtDate(r.taxInvoiceDate):'-'}</td>
+    <td style="font-size:10px">${isVoid?'<span class="badge badge-void" style="font-size:9px;padding:1px 4px">ยกเลิก</span>':r.paytype==='credit'?`<span class="badge badge-${r.creditStatus==='paid'?'ok':'wht'}" style="font-size:9px;padding:1px 4px">${r.creditStatus==='paid'?'✅จ่าย':'⏳ค้าง'}</span>`:'<span style="color:var(--success);font-size:10px">✓</span>'}</td>
     <td style="white-space:nowrap">
-      <button class="btn btn-outline btn-xs" onclick="viewRecord(${r.id})">👁️</button>
-      ${r.files&&r.files.length?`<button class="btn btn-outline btn-xs" onclick="viewRecordFiles(${r.id})" title="ดูไฟล์แนบ">📎</button>`:''}
+      <button class="btn btn-outline btn-xs" style="padding:2px 4px;font-size:11px" onclick="viewRecord(${r.id})">👁️</button>
+      ${r.files&&r.files.length?`<button class="btn btn-outline btn-xs" style="padding:2px 4px;font-size:11px" onclick="viewRecordFiles(${r.id})" title="ดูไฟล์แนบ">📎</button>`:''}
     </td>
   </tr>`;
 }
 
 function renderRecordsTable() {
-  const total=filteredRecs.length;
+  // Split all filtered recs into VAT and No-VAT
+  const allVat=filteredRecs.filter(r=>r.vat>0);
+  const allNoVat=filteredRecs.filter(r=>r.vat<=0);
+
+  // Update tab counts
+  document.getElementById('tab-vat-count').textContent=`(${allVat.length})`;
+  document.getElementById('tab-novat-count').textContent=`(${allNoVat.length})`;
+
+  // Determine which list to paginate based on current tab
+  const activeList=currentRecordTab==='vat'?allVat:allNoVat;
+  const total=activeList.length;
   const start=(currentPage-1)*perPage;
-  const pageRecs=filteredRecs.slice(start,start+perPage);
-  
-  // ---- Totals for ALL filtered recs (not just page) ----
-  const allVat=filteredRecs.filter(r=>r.vat>0&&r.status==='active');
-  const allNoVat=filteredRecs.filter(r=>r.vat<=0&&r.status==='active');
+  const pageRecs=activeList.slice(start,start+perPage);
+
+  // ---- Totals for ALL filtered ----
   const sumVatBefore=allVat.reduce((s,r)=>s+r.beforeVat,0);
   const sumVatAmt=allVat.reduce((s,r)=>s+r.vat,0);
   const sumVatTotal=allVat.reduce((s,r)=>s+r.total,0);
   const sumVatWHT=allVat.reduce((s,r)=>s+(r.whtAmount||0),0);
   const sumNoVatTotal=allNoVat.reduce((s,r)=>s+r.total,0);
   const sumNoVatWHT=allNoVat.reduce((s,r)=>s+(r.whtAmount||0),0);
-  const grandTotal=sumVatTotal+sumNoVatTotal;
-  const grandWHT=sumVatWHT+sumNoVatWHT;
 
-  // Build totals row style (matches image)
-  const makeFootBar=(label,cnt,beforeVat,vatAmt,total,wht,color)=>`
-    <div style="display:flex;align-items:center;gap:0;background:${color};border-radius:0 0 8px 8px;padding:8px 14px;font-size:13px;font-weight:600;">
-      <span style="flex:1;color:#444">${label} (${cnt} รายการ)</span>
-      <span style="width:110px;text-align:right">฿${fmt(beforeVat)}</span>
-      <span style="width:90px;text-align:right">฿${fmt(vatAmt)}</span>
-      <span style="width:110px;text-align:right;font-size:14px;font-weight:700">฿${fmt(total)}</span>
-      <span style="width:100px;text-align:right;color:var(--warning)">${wht>0?'฿'+fmt(wht):'-'}</span>
-      <span style="width:40px"></span>
-    </div>`;
-
-  // Split VAT and no-VAT
-  const vatRecs = pageRecs.filter(r=>r.vat>0);
-  const noVatRecs = pageRecs.filter(r=>r.vat<=0);
-  const hasNoVat = noVatRecs.length > 0;
-  const hasVat = vatRecs.length > 0;
-
-  // VAT section header
-  document.getElementById('records-vat-header').style.display = (hasVat && hasNoVat) ? '' : 'none';
-  
-  const tbody=document.getElementById('records-tbody');
-  if(pageRecs.length===0) {
-    tbody.innerHTML='<tr><td colspan="16" style="text-align:center;color:var(--text-muted);padding:24px">ไม่พบรายการ</td></tr>';
-    document.getElementById('records-novat-header').style.display='none';
-    document.getElementById('records-novat-wrap').style.display='none';
-  } else {
-    // VAT recs: sequential numbered within group
-    const vatStart = start + 1;
-    tbody.innerHTML = (hasVat ? vatRecs : pageRecs).map((r,i)=>buildRecordRow(r, vatStart+i)).join('') ||
-      '<tr><td colspan="16" style="text-align:center;color:var(--text-muted);padding:12px">ไม่มีบิล VAT 7%</td></tr>';
-    
-    // No-VAT recs
-    const novatWrap = document.getElementById('records-novat-wrap');
-    const novatHeader = document.getElementById('records-novat-header');
-    const vatTotalBar = document.getElementById('records-vat-total-bar');
-    const novatTotalBar = document.getElementById('records-novat-total-bar');
-    
-    if(hasNoVat && hasVat) {
-      novatHeader.style.display='';
-      novatWrap.style.display='';
-      document.getElementById('records-novat-tbody').innerHTML =
-        noVatRecs.map((r,i)=>buildRecordRow(r, i+1)).join('');
-      // VAT total bar
-      if(vatTotalBar){
-        vatTotalBar.style.display='';
-        vatTotalBar.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;background:#dbeafe;border-radius:0 0 6px 6px;padding:7px 12px;font-size:12.5px;font-weight:600;border-top:2px solid #93c5fd;">
-          <span style="flex:1">📋 รวมบิล VAT 7% — ${allVat.length} รายการ</span>
-          <span>ก่อน VAT: <b>฿${fmt(sumVatBefore)}</b></span>
-          <span>VAT: <b>฿${fmt(sumVatAmt)}</b></span>
-          <span>รวม: <b style="font-size:14px;color:#1d4ed8">฿${fmt(sumVatTotal)}</b></span>
-          ${sumVatWHT>0?`<span style="color:var(--warning)">หัก ณ จ่าย: <b>฿${fmt(sumVatWHT)}</b></span>`:''}
-        </div>`;
-      }
-      // No-VAT total bar
-      if(novatTotalBar){
-        novatTotalBar.style.display='';
-        novatTotalBar.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;background:#f3e8ff;border-radius:0 0 6px 6px;padding:7px 12px;font-size:12.5px;font-weight:600;border-top:2px solid #c084fc;">
-          <span style="flex:1">📋 รวมบิลไม่มี VAT — ${allNoVat.length} รายการ</span>
-          <span>รวม: <b style="font-size:14px;color:#7e22ce">฿${fmt(sumNoVatTotal)}</b></span>
-          ${sumNoVatWHT>0?`<span style="color:var(--warning)">หัก ณ จ่าย: <b>฿${fmt(sumNoVatWHT)}</b></span>`:''}
-        </div>`;
-      }
-    } else if(hasNoVat && !hasVat) {
-      novatHeader.style.display='none';
-      novatWrap.style.display='none';
-      if(vatTotalBar) vatTotalBar.style.display='none';
-      // Show non-vat in main tbody
-      tbody.innerHTML = noVatRecs.map((r,i)=>buildRecordRow(r, start+i+1)).join('');
-      if(novatTotalBar){
-        novatTotalBar.style.display='';
-        novatTotalBar.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;background:#f3e8ff;border-radius:0 0 6px 6px;padding:7px 12px;font-size:12.5px;font-weight:600;border-top:2px solid #c084fc;">
-          <span style="flex:1">📋 รวมบิลไม่มี VAT — ${allNoVat.length} รายการ</span>
-          <span>รวม: <b style="font-size:14px;color:#7e22ce">฿${fmt(sumNoVatTotal)}</b></span>
-        </div>`;
-      }
+  // ---- Render VAT tab ----
+  const vatTotalBar=document.getElementById('records-vat-total-bar');
+  if(currentRecordTab==='vat'){
+    const tbody=document.getElementById('records-tbody');
+    if(!pageRecs.length){
+      tbody.innerHTML='<tr><td colspan="17" style="text-align:center;color:var(--text-muted);padding:24px">ไม่มีบิล VAT 7%</td></tr>';
     } else {
-      novatHeader.style.display='none';
-      novatWrap.style.display='none';
-      if(novatTotalBar) novatTotalBar.style.display='none';
-      // VAT only total bar
-      if(vatTotalBar&&allVat.length){
-        vatTotalBar.style.display='';
-        vatTotalBar.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;background:#dbeafe;border-radius:0 0 6px 6px;padding:7px 12px;font-size:12.5px;font-weight:600;border-top:2px solid #93c5fd;">
-          <span style="flex:1">📋 รวมบิล VAT 7% — ${allVat.length} รายการ</span>
-          <span>ก่อน VAT: <b>฿${fmt(sumVatBefore)}</b></span>
-          <span>VAT: <b>฿${fmt(sumVatAmt)}</b></span>
-          <span>รวม: <b style="font-size:14px;color:#1d4ed8">฿${fmt(sumVatTotal)}</b></span>
-          ${sumVatWHT>0?`<span style="color:var(--warning)">หัก ณ จ่าย: <b>฿${fmt(sumVatWHT)}</b></span>`:''}
-        </div>`;
-      } else if(vatTotalBar) vatTotalBar.style.display='none';
+      tbody.innerHTML=pageRecs.map((r,i)=>buildRecordRow(r, start+i+1)).join('');
+    }
+    if(vatTotalBar){
+      vatTotalBar.style.display=allVat.length?'':'none';
+      vatTotalBar.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;background:#dbeafe;border-radius:0 0 6px 6px;padding:7px 12px;font-size:12.5px;font-weight:600;border-top:2px solid #93c5fd;">
+        <span style="flex:1">📋 รวมบิล VAT 7% — ${allVat.length} รายการ</span>
+        <span>ก่อน VAT: <b>฿${fmt(sumVatBefore)}</b></span>
+        <span>VAT: <b>฿${fmt(sumVatAmt)}</b></span>
+        <span>รวม: <b style="font-size:14px;color:#1d4ed8">฿${fmt(sumVatTotal)}</b></span>
+        ${sumVatWHT>0?`<span style="color:var(--warning)">หัก ณ จ่าย: <b>฿${fmt(sumVatWHT)}</b></span>`:''}
+      </div>`;
     }
   }
 
-  // Pagination
+  // ---- Render No-VAT tab ----
+  const novatTotalBar=document.getElementById('records-novat-total-bar');
+  if(currentRecordTab==='novat'){
+    const novatTbody=document.getElementById('records-novat-tbody');
+    if(!pageRecs.length){
+      novatTbody.innerHTML='<tr><td colspan="17" style="text-align:center;color:var(--text-muted);padding:24px">ไม่มีบิลไม่มี VAT</td></tr>';
+    } else {
+      novatTbody.innerHTML=pageRecs.map((r,i)=>buildRecordRow(r, start+i+1)).join('');
+    }
+    if(novatTotalBar){
+      novatTotalBar.style.display=allNoVat.length?'':'none';
+      novatTotalBar.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;background:#f3e8ff;border-radius:0 0 6px 6px;padding:7px 12px;font-size:12.5px;font-weight:600;border-top:2px solid #c084fc;">
+        <span style="flex:1">📋 รวมบิลไม่มี VAT — ${allNoVat.length} รายการ</span>
+        <span>รวม: <b style="font-size:14px;color:#7e22ce">฿${fmt(sumNoVatTotal)}</b></span>
+        ${sumNoVatWHT>0?`<span style="color:var(--warning)">หัก ณ จ่าย: <b>฿${fmt(sumNoVatWHT)}</b></span>`:''}
+      </div>`;
+    }
+  }
+
+  // Pagination with page size selector
   const pg=document.getElementById('pagination');
   const totalPg=Math.ceil(total/perPage);
   pg.innerHTML='';
-  for(let i=1;i<=Math.min(totalPg,15);i++){
+
+  // Per-page selector
+  const ppWrap=document.createElement('span');
+  ppWrap.style.cssText='display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:11px;color:var(--text-muted)';
+  ppWrap.innerHTML=`แสดง <select onchange="perPage=parseInt(this.value);currentPage=1;renderRecordsTable()" style="padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-size:11px">
+    ${[25,50,100,200].map(n=>`<option value="${n}" ${n===perPage?'selected':''}>${n}</option>`).join('')}
+  </select> รายการ/หน้า (${total} รายการ)`;
+  pg.appendChild(ppWrap);
+
+  // Page buttons
+  const maxShow=10;
+  let startP=Math.max(1,currentPage-Math.floor(maxShow/2));
+  let endP=Math.min(totalPg,startP+maxShow-1);
+  if(endP-startP<maxShow-1) startP=Math.max(1,endP-maxShow+1);
+
+  if(startP>1){
+    const b1=document.createElement('button');b1.className='page-btn';b1.textContent='1';
+    b1.onclick=()=>{currentPage=1;renderRecordsTable();window.scrollTo({top:0,behavior:'smooth'});};
+    pg.appendChild(b1);
+    if(startP>2){const dots=document.createElement('span');dots.textContent='...';dots.style.cssText='padding:0 4px;color:var(--text-muted)';pg.appendChild(dots);}
+  }
+  for(let i=startP;i<=endP;i++){
     const btn=document.createElement('button');
     btn.className='page-btn'+(i===currentPage?' active':'');
     btn.textContent=i;
-    btn.onclick=()=>{currentPage=i;renderRecordsTable();};
+    btn.onclick=()=>{currentPage=i;renderRecordsTable();window.scrollTo({top:0,behavior:'smooth'});};
     pg.appendChild(btn);
+  }
+  if(endP<totalPg){
+    if(endP<totalPg-1){const dots=document.createElement('span');dots.textContent='...';dots.style.cssText='padding:0 4px;color:var(--text-muted)';pg.appendChild(dots);}
+    const bLast=document.createElement('button');bLast.className='page-btn';bLast.textContent=totalPg;
+    bLast.onclick=()=>{currentPage=totalPg;renderRecordsTable();window.scrollTo({top:0,behavior:'smooth'});};
+    pg.appendChild(bLast);
   }
 }
 
@@ -2479,12 +2812,27 @@ function viewRecord(id) {
   document.getElementById('btn-void').style.display=r.status==='void'?'none':'';
   document.getElementById('btn-edit').onclick=()=>openEditModal(id);
   document.getElementById('btn-edit').style.display=r.status==='void'?'none':'';
+  // ใบสำคัญจ่าย: เครดิตที่ยังไม่จ่าย ไม่สามารถออกได้ (ต้องทำรวมยอดจ่าย Supplier ก่อน)
+  const voucherBtn=document.getElementById('btn-print-voucher');
+  if(voucherBtn){
+    const canPrintVoucher=r.status!=='void'&&!(r.paytype==='credit'&&r.creditStatus!=='paid');
+    voucherBtn.style.display=canPrintVoucher?'':'none';
+  }
   openModal('modal-view');
 }
 
 function showFileModal(src) {
   document.getElementById('img-modal-src').src=src;
   document.getElementById('img-modal').classList.add('open');
+}
+// Load proof file from IDB if needed, then show in modal
+async function showProofFile(recId, fileIdx) {
+  const r=DB.records.find(x=>x.id===recId);
+  if(!r||!r.proofFiles||!r.proofFiles[fileIdx]) return;
+  const f=r.proofFiles[fileIdx];
+  if(!f.data && f.fileId) { f.data = await FileStore.get(f.fileId); }
+  if(f.data) showFileModal(f.data);
+  else showToast('⚠️ ไม่พบไฟล์แนบ','danger');
 }
 
 function viewRecordFiles(id) {
@@ -2648,6 +2996,7 @@ function saveEdit() {
         w.editHistory.push({at:new Date().toLocaleString('th-TH'),oldAmt:w.whtAmount,newAmt:newWhtAmt});
       }
       w.baseAmount=newBv; w.whtRate=newRate; w.whtAmount=newWhtAmt;
+      w.vatAmount=r.vat||0; w.totalAmount=r.total||0;
       w.date=newDate; w.supplier=newSupplier; w.description=newDesc;
     }
     r.whtRate=newRate; r.whtAmount=newWhtAmt; r.netPay=r.total-newWhtAmt;
@@ -2698,10 +3047,11 @@ function saveChange(){
   clearChangeForm(); renderReceiveHistory(); renderBalance(); renderHeaderBalance();
 }
 
-function renderReceiveHistory(){
+let rcvPage=1, rcvPerPage=15;
+function renderReceiveHistory(resetPage){
+  if(resetPage) rcvPage=1;
   const fc=document.getElementById('rf-company').value;
   const fm=document.getElementById('rf-month').value;
-  // Sort ascending first to compute running balance, then reverse for display
   const list=DB.cashflows.filter(c=>{
     if(c.status==='void')return false;
     if(fc&&c.company!==fc)return false;
@@ -2709,35 +3059,24 @@ function renderReceiveHistory(){
     return true;
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
 
-  // Compute running balance per row
   let running=0;
-  const rowsAsc=list.map((c,i)=>{
-    const isIn=(c.type==='receive'||c.type==='change'); // ทอนคืน = รับเข้า (เพิ่มยอด)
-    const isRcv=c.type==='receive';
-    const isChg=c.type==='change';
-    running+=(isIn?c.amount:0);
-    return {c,i,isIn,isRcv,isChg,running};
-  });
-
-  // Recompute with correct sign: receive=+, change=+ (ทอนคืน=รับเงินกลับมา), others=-
-  // Actually: receive=บริษัทโอนเงินให้เรา(+), change=ทอนเงินคืนเจ้านาย(+ในมือ/ลดหนี้)
-  // Let's recompute: "change" type = ทอนคืน = รับเงินกลับเข้ากระเป๋า = บวก
-  running=0;
   const rowsWithBalance=list.map((c,i)=>{
     const isIn=c.type==='receive';
     const isChg=c.type==='change';
-    // ทอนคืน: เงินทอนกลับมา = รับเข้า (+)
     if(isIn) running+=c.amount;
-    else if(isChg) running+=c.amount; // ทอนคืน = รับเข้าเพิ่ม
+    else if(isChg) running+=c.amount;
     return {c,idx:i,running,isIn,isChg};
   });
-  
-  // Display newest first
+
   const rowsDesc=[...rowsWithBalance].reverse();
   const totalRows=rowsDesc.length;
 
-  document.getElementById('receive-tbody').innerHTML=rowsDesc.map(({c,idx,running,isIn,isChg},di)=>{
-    const seq=totalRows-di;
+  // Pagination
+  const start=(rcvPage-1)*rcvPerPage;
+  const pageRows=rowsDesc.slice(start,start+rcvPerPage);
+
+  document.getElementById('receive-tbody').innerHTML=pageRows.map(({c,idx,running,isIn,isChg},di)=>{
+    const seq=totalRows-(start+di);
     const label=isIn?'💰 รับเงิน':'🔄 ทอนคืน';
     const badgeCls=isIn?'receive':'change';
     return `<tr>
@@ -2753,6 +3092,19 @@ function renderReceiveHistory(){
       <td><button class="btn btn-outline btn-xs" onclick="voidCashflow(${c.id})">🗑️</button></td>
     </tr>`;
   }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">ยังไม่มีรายการ</td></tr>';
+
+  // Pagination controls
+  const pg=document.getElementById('receive-pagination');
+  const totalPg=Math.ceil(totalRows/rcvPerPage);
+  pg.innerHTML='';
+  if(totalPg>1){
+    const info=document.createElement('span');info.style.cssText='font-size:11px;color:var(--text-muted);margin-right:10px';
+    info.textContent=`${totalRows} รายการ`;pg.appendChild(info);
+    for(let i=1;i<=Math.min(totalPg,10);i++){
+      const btn=document.createElement('button');btn.className='page-btn'+(i===rcvPage?' active':'');btn.textContent=i;
+      btn.onclick=()=>{rcvPage=i;renderReceiveHistory();window.scrollTo({top:0,behavior:'smooth'});};pg.appendChild(btn);
+    }
+  }
 }
 
 function voidCashflow(id){
@@ -2774,8 +3126,9 @@ function computeBalance(company, upToDate){
   const totalIn=cfs.filter(c=>c.type==='receive').reduce((s,c)=>s+c.amount,0);
   const totalOut=recs.reduce((s,r)=>s+r.total,0);
   const totalChange=cfs.filter(c=>c.type==='change').reduce((s,c)=>s+c.amount,0);
-  // ทอนคืน = รับเงินกลับเข้า (+) จึงบวกเข้ายอดคงเหลือ
-  return {totalIn,totalOut,totalChange,balance:totalIn+totalChange-totalOut};
+  // ชำระเครดิต = จ   ายออกจริง (-)
+  const totalCreditPay=cfs.filter(c=>c.type==='credit-pay').reduce((s,c)=>s+c.amount,0);
+  return {totalIn,totalOut,totalChange,totalCreditPay,balance:totalIn+totalChange-totalOut-totalCreditPay};
 }
 
 function renderBalance(){
@@ -2784,30 +3137,54 @@ function renderBalance(){
   const bal=computeBalance(company||null,null);
   const mIn=DB.cashflows.filter(c=>c.status==='active'&&c.type==='receive'&&(!company||c.company===company)&&(!month||c.date.startsWith(month))).reduce((s,c)=>s+c.amount,0);
   const mOut=DB.records.filter(r=>r.status==='active'&&(r.paytype==='cash'||r.paytype==='transfer')&&r.paytype!=='owner'&&(!company||r.company===company)&&(!month||r.date.startsWith(month))).reduce((s,r)=>s+r.total,0);
+  const mCreditPay=DB.cashflows.filter(c=>c.status==='active'&&c.type==='credit-pay'&&(!company||c.company===company)&&(!month||c.date.startsWith(month))).reduce((s,c)=>s+c.amount,0);
 
   document.getElementById('balance-panel').innerHTML=`
     <div class="summary-box"><div class="s-label">💰 รับสะสม (ทั้งหมด)</div><div class="s-val blue">฿${fmt(bal.totalIn)}</div></div>
     <div class="summary-box"><div class="s-label">📤 จ่ายออก (สด+โอน)</div><div class="s-val red">฿${fmt(bal.totalOut)}</div></div>
+    <div class="summary-box"><div class="s-label">💳 ชำระเครดิต (-)</div><div class="s-val red">฿${fmt(bal.totalCreditPay)}</div></div>
     <div class="summary-box"><div class="s-label">🔄 รับทอนคืนสะสม (+)</div><div class="s-val green">฿${fmt(bal.totalChange)}</div></div>
     <div class="summary-box"><div class="s-label">⚖️ คงเหลือในมือ</div><div class="s-val ${bal.balance>=0?'green':'red'}">฿${fmt(bal.balance)}</div></div>
     <div class="summary-box"><div class="s-label">📅 เดือนนี้ รับ/จ่าย</div>
       <div style="font-size:12px;margin-top:4px">รับ: <b style="color:var(--success)">฿${fmt(mIn)}</b></div>
-      <div style="font-size:12px">จ่าย: <b style="color:var(--danger)">฿${fmt(mOut)}</b></div>
-      <div style="font-size:12px;border-top:1px solid var(--border);margin-top:3px;padding-top:3px">คงเหลือ: <b style="color:${mIn-mOut>=0?'var(--success)':'var(--danger)'}">฿${fmt(mIn-mOut)}</b></div>
+      <div style="font-size:12px">จ่าย(สด): <b style="color:var(--danger)">฿${fmt(mOut)}</b></div>
+      <div style="font-size:12px">จ่าย(เครดิต): <b style="color:var(--danger)">฿${fmt(mCreditPay)}</b></div>
+      <div style="font-size:12px;border-top:1px solid var(--border);margin-top:3px;padding-top:3px">คงเหลือ: <b style="color:${mIn-mOut-mCreditPay>=0?'var(--success)':'var(--danger)'}">฿${fmt(mIn-mOut-mCreditPay)}</b></div>
     </div>
   `;
 
   // Ledger
   const entries=[];
   DB.cashflows.filter(c=>c.status==='active'&&(!company||c.company===company)&&(!month||c.date.startsWith(month)))
-    .forEach(c=>entries.push({date:c.date,no:c.no,company:c.company,type:c.type==='receive'?'receive':'change',label:c.type==='receive'?'💰 รับเงิน':'🔄 ทอนคืน(+)',inAmt:c.amount,outAmt:0,remark:c.remark}));
+    .forEach(c=>{
+      if(c.type==='credit-pay'){
+        entries.push({date:c.date,no:c.no,company:c.company,type:'credit-pay',label:'💳 ชำระเครดิต',inAmt:0,outAmt:c.amount,remark:c.remark});
+      } else {
+        entries.push({date:c.date,no:c.no,company:c.company,type:c.type==='receive'?'receive':'change',label:c.type==='receive'?'💰 รับเงิน':'🔄 ทอนคืน(+)',inAmt:c.amount,outAmt:0,remark:c.remark});
+      }
+    });
   DB.records.filter(r=>r.status==='active'&&(r.paytype==='cash'||r.paytype==='transfer')&&r.paytype!=='owner'&&(!company||r.company===company)&&(!month||r.date.startsWith(month)))
     .forEach(r=>entries.push({date:r.date,no:r.no,company:r.company,type:'out',label:`📤 ${r.paytype==='cash'?'สด':'โอน'}`,inAmt:0,outAmt:r.total,remark:r.description}));
   entries.sort((a,b)=>a.date.localeCompare(b.date)||a.no.localeCompare(b.no));
 
+  // Compute running balance for all entries first
   let running=0;
-  document.getElementById('ledger-tbody').innerHTML=entries.map(e=>{
+  const entriesWithBal=entries.map(e=>{
     running+=e.inAmt-e.outAmt;
+    return {...e,running};
+  });
+
+  // Pagination
+  if(!window.ledgerPage) window.ledgerPage=1;
+  if(!window.ledgerPP) window.ledgerPP=15;
+  const ledgerPP=window.ledgerPP;
+  const totalLedger=entriesWithBal.length;
+  const totalLedgerPg=Math.ceil(totalLedger/ledgerPP);
+  if(window.ledgerPage>totalLedgerPg) window.ledgerPage=1;
+  const lStart=(window.ledgerPage-1)*ledgerPP;
+  const pageEntries=entriesWithBal.slice(lStart,lStart+ledgerPP);
+
+  document.getElementById('ledger-tbody').innerHTML=pageEntries.map(e=>{
     const rowCls=e.type==='receive'?'ledger-in':e.type==='change'?'ledger-change':'ledger-out';
     return `<tr class="${rowCls}">
       <td>${fmtDate(e.date)}</td>
@@ -2816,10 +3193,27 @@ function renderBalance(){
       <td>${e.label}</td>
       <td style="text-align:right;color:var(--success);font-weight:600">${e.inAmt?'฿'+fmt(e.inAmt):'-'}</td>
       <td style="text-align:right;color:var(--danger);font-weight:600">${e.outAmt?'฿'+fmt(e.outAmt):'-'}</td>
-      <td style="text-align:right;font-weight:700" class="${running>=0?'bal-positive':'bal-negative'}">฿${fmt(running)}</td>
+      <td style="text-align:right;font-weight:700" class="${e.running>=0?'bal-positive':'bal-negative'}">฿${fmt(e.running)}</td>
       <td style="font-size:11.5px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.remark||'-'}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">ไม่พบรายการ</td></tr>';
+
+  const lpg=document.getElementById('ledger-pagination');
+  lpg.innerHTML='';
+  // Per-page selector (always show)
+  const ppWrap=document.createElement('span');
+  ppWrap.style.cssText='display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:11px;color:var(--text-muted)';
+  ppWrap.innerHTML=`แสดง <select onchange="window.ledgerPP=parseInt(this.value);window.ledgerPage=1;renderBalance()" style="padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-size:11px">
+    ${[15,25,50,100].map(n=>`<option value="${n}" ${n===ledgerPP?'selected':''}>${n}</option>`).join('')}
+  </select> รายการ/หน้า (${totalLedger} รายการ)`;
+  lpg.appendChild(ppWrap);
+  // Page buttons
+  if(totalLedgerPg>1){
+    for(let i=1;i<=Math.min(totalLedgerPg,10);i++){
+      const btn=document.createElement('button');btn.className='page-btn'+(i===window.ledgerPage?' active':'');btn.textContent=i;
+      btn.onclick=()=>{window.ledgerPage=i;renderBalance();window.scrollTo({top:0,behavior:'smooth'});};lpg.appendChild(btn);
+    }
+  }
 }
 
 // ============================================================
@@ -2960,7 +3354,7 @@ function renderCreditList(tab){
   const sumTotal=list.reduce((s,r)=>s+r.total,0);
   const sumWHT=list.reduce((s,r)=>s+(r.whtAmount||0),0);
   document.getElementById('credit-summary-bar').innerHTML=list.length?
-    `<div style="display:flex;gap:16px;font-size:13px;padding:6px 10px;background:#f0f4f9;border-radius:6px;">
+    `<div style="display:flex;gap:16px;font-size:13px;padding:6px 10px;background:#f5f7fa;border-radius:6px;">
       <span>รายการ: <strong>${list.length}</strong></span>
       <span>ยอดรวม: <strong style="color:var(--primary)">฿${fmt(sumTotal)}</strong></span>
       <span>หัก ณ จ่าย: <strong style="color:var(--warning)">฿${fmt(sumWHT)}</strong></span>
@@ -2991,7 +3385,7 @@ function renderCreditList(tab){
           const proofLabel={'slip':'สลิปโอนเงิน','scan':'สแกนใบเสร็จ','photo':'รูปภาพ','other':'อื่นๆ'};
           const files=r.proofFiles&&r.proofFiles.length
             ?r.proofFiles.map((f,fi)=>f.type&&f.type.startsWith('image/')
-              ?`<button class="btn btn-outline btn-xs" style="padding:1px 5px" onclick="showFileModal('${f.data}')" title="${f.name}">🖼️</button>`
+              ?`<button class="btn btn-outline btn-xs" style="padding:1px 5px" onclick="showProofFile(${r.id},${fi})" title="${f.name}">🖼️</button>`
               :`<button class="btn btn-outline btn-xs" style="padding:1px 5px" title="${f.name}">📎</button>`
             ).join('')
             :'';
@@ -3017,13 +3411,24 @@ function openPayStatusModal(id){
   document.getElementById('ps-remark').value=r.proofRemark||'';
   document.getElementById('ps-file-preview').innerHTML='';
   document.getElementById('ps-file-input').value='';
-  // Show existing attached files
+  // Show existing attached files (load from IDB if needed)
+  const psPreview=document.getElementById('ps-file-preview');
   if(r.proofFiles&&r.proofFiles.length){
-    document.getElementById('ps-file-preview').innerHTML=r.proofFiles.map((f,i)=>
-      f.type&&f.type.startsWith('image/')
-        ?`<img src="${f.data}" style="max-height:60px;border-radius:4px;margin:2px;border:1px solid var(--border)" title="${f.name}">`
-        :`<span style="font-size:11px;background:#f0f4f9;padding:2px 8px;border-radius:4px;margin:2px;display:inline-block">📎 ${f.name}</span>`
-    ).join('');
+    psPreview.innerHTML='';
+    r.proofFiles.forEach((f,i)=>{
+      const wrap=document.createElement('span');
+      const renderIt=(data)=>{
+        if(f.type&&f.type.startsWith('image/')&&data){
+          wrap.innerHTML=`<img src="${data}" style="max-height:60px;border-radius:4px;margin:2px;border:1px solid var(--border)" title="${f.name}">`;
+        } else {
+          wrap.innerHTML=`<span style="font-size:11px;background:#f5f7fa;padding:2px 8px;border-radius:4px;margin:2px;display:inline-block">📎 ${f.name}</span>`;
+        }
+      };
+      if(f.data){ renderIt(f.data); }
+      else if(f.fileId){ wrap.textContent='⏳'; FileStore.get(f.fileId).then(d=>{if(d)f.data=d; renderIt(d);}); }
+      else { renderIt(null); }
+      psPreview.appendChild(wrap);
+    });
   }
   openModal('modal-pay-status');
 }
@@ -3069,7 +3474,7 @@ function handlePayStatusFile(input){
       fr.readAsDataURL(f);
     } else {
       const sp=document.createElement('span');
-      sp.style.cssText='font-size:11px;background:#f0f4f9;padding:2px 8px;border-radius:4px;margin:2px;display:inline-block';
+      sp.style.cssText='font-size:11px;background:#f5f7fa;padding:2px 8px;border-radius:4px;margin:2px;display:inline-block';
       sp.textContent='📎 '+f.name;
       preview.appendChild(sp);
     }
@@ -3204,7 +3609,7 @@ function renderBulkSummary(){
           </thead>
           <tbody>${rows||'<tr><td colspan="100" style="text-align:center;padding:16px;color:var(--text-muted)">ไม่พบรายการ</td></tr>'}</tbody>
           <tfoot>
-            <tr style="background:#f0f4f9;font-weight:700">
+            <tr style="background:#f5f7fa;font-weight:700">
               <td colspan='6' style='font-weight:700'>รวมทุก Supplier</td>
               ${totalsRow}
               <td style="text-align:right;color:var(--warning);border-top:2px solid var(--primary)">฿${fmt(suppList.reduce((s,sp)=>s+filteredMonths.reduce((ss,m)=>ss+(sp.months[m]?.wht||0),0),0))}</td>
@@ -3215,6 +3620,55 @@ function renderBulkSummary(){
         </table>
       </div>
       <div style="font-size:11px;color:var(--text-muted);margin-top:6px">📌 = ตั้งหนี้แล้ว &nbsp;|&nbsp; 🟢 = ชำระแล้ว &nbsp;|&nbsp; กดปุ่ม <strong>อัพเดตสถานะ</strong> ในแต่ละช่องเพื่อบันทึกการชำระและดูข้อมูลเดิม</div>
+    </div>
+    ${renderBulkPaymentHistory(company,fromM,toM)}`;
+}
+
+function renderBulkPaymentHistory(filterCompany,fromM,toM){
+  // ดึงประวัติการชำระจาก cashflows type credit-pay
+  let history=DB.cashflows.filter(c=>c.status==='active'&&c.type==='credit-pay');
+  if(filterCompany) history=history.filter(c=>c.company===filterCompany);
+  if(fromM) history=history.filter(c=>c.date>=fromM);
+  if(toM) history=history.filter(c=>c.date<=toM+'-31');
+  history.sort((a,b)=>b.date.localeCompare(a.date));
+
+  if(!history.length) return '';
+
+  const rows=history.map((h,i)=>{
+    const bd=DB.bulkDocs.find(bd=>bd.paidDate===h.date&&h.remark?.includes(bd.suppId));
+    return `<tr>
+      <td style="text-align:center;color:var(--text-muted);font-size:10px">${i+1}</td>
+      <td style="font-weight:600;color:var(--primary);font-size:11px">${h.no}</td>
+      <td style="font-size:11px">${fmtDate(h.date)}</td>
+      <td style="font-size:11px">${compShort(h.company)}</td>
+      <td style="font-size:11px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.remark||''}">${h.remark||'-'}</td>
+      <td style="text-align:right;font-weight:700;color:var(--danger)">฿${fmt(h.amount)}</td>
+      <td style="font-size:10px">${h.channel||'-'}</td>
+    </tr>`;
+  }).join('');
+
+  const totalPaid=history.reduce((s,h)=>s+h.amount,0);
+
+  return `
+    <div class="card" style="margin-top:12px">
+      <div class="card-title" style="font-size:13px;margin-bottom:8px">📜 ประวัติการชำระเครดิต</div>
+      <div class="filter-bar" style="margin-bottom:8px">
+        <div style="font-size:12px;color:var(--text-muted)">แสดง ${history.length} รายการ | รวมยอดชำระ: <strong style="color:var(--danger)">฿${fmt(totalPaid)}</strong></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:28px">#</th>
+            <th>เลขที่</th>
+            <th>วันที่ชำระ</th>
+            <th>บริษัท</th>
+            <th>รายละเอียด</th>
+            <th style="text-align:right">ยอดจ่าย</th>
+            <th>วิธีจ่าย</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </div>`;
 }
 
@@ -3257,17 +3711,27 @@ function openBulkCellPayModal(suppId, suppName, month){
       existing.files.forEach((f,fi)=>{
         const wrap=document.createElement('div');
         wrap.style.cssText='position:relative;display:inline-block;margin:2px;';
-        if(f.type&&f.type.startsWith('image/')){
-          wrap.innerHTML=`<img src="${f.data}" style="max-height:60px;border-radius:4px;border:1px solid var(--border);display:block" title="${f.name}">`;
+        const renderFileContent=(fileData)=>{
+          if(f.type&&f.type.startsWith('image/')&&fileData){
+            wrap.innerHTML=`<img src="${fileData}" style="max-height:60px;border-radius:4px;border:1px solid var(--border);display:block" title="${f.name}">`;
+          } else {
+            wrap.innerHTML=`<span style="font-size:11px;background:#f5f7fa;padding:4px 8px;border-radius:4px;display:inline-block">📎 ${f.name}</span>`;
+          }
+          const delBtn=document.createElement('button');
+          delBtn.textContent='✕';
+          delBtn.title='ลบไฟล์นี้';
+          delBtn.style.cssText='position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;';
+          delBtn.onclick=()=>deleteBcpSavedFile(suppId,month,fi);
+          wrap.appendChild(delBtn);
+        };
+        if(f.data){
+          renderFileContent(f.data);
+        } else if(f.fileId){
+          wrap.innerHTML='<span style="font-size:11px;color:#999">⏳</span>';
+          FileStore.get(f.fileId).then(data=>{ if(data){f.data=data;} renderFileContent(data); });
         } else {
-          wrap.innerHTML=`<span style="font-size:11px;background:#f0f4f9;padding:4px 8px;border-radius:4px;display:inline-block">📎 ${f.name}</span>`;
+          renderFileContent(null);
         }
-        const delBtn=document.createElement('button');
-        delBtn.textContent='✕';
-        delBtn.title='ลบไฟล์นี้';
-        delBtn.style.cssText='position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;';
-        delBtn.onclick=()=>deleteBcpSavedFile(suppId,month,fi);
-        wrap.appendChild(delBtn);
         savedFilesEl.appendChild(wrap);
       });
     } else {
@@ -3277,26 +3741,35 @@ function openBulkCellPayModal(suppId, suppName, month){
     savedSection.style.display='none';
   }
 
-  // Render bill list (hidden by default)
+  // Render bill list with checkboxes
   const billListEl=document.getElementById('bcp-bill-list-content');
+  const hasUnpaid=allRecs.some(r=>r.creditStatus!=='paid');
   if(allRecs.length){
-    billListEl.innerHTML=`<table style="width:100%;font-size:11.5px;border-collapse:collapse;">
-      <thead><tr style="background:#f0f4f9;">
+    billListEl.innerHTML=`<table id="bcp-bill-table" style="width:100%;font-size:11.5px;border-collapse:collapse;">
+      <thead><tr style="background:#f5f7fa;">
+        <th style="padding:3px 6px;text-align:center;width:30px"><input type="checkbox" id="bcp-select-all" onchange="toggleBcpSelectAll(this)" title="เลือกทั้งหมด"></th>
         <th style="padding:3px 6px;text-align:left">เลขที่</th>
         <th style="padding:3px 6px;text-align:left">วันที่</th>
         <th style="padding:3px 6px;text-align:left">เลขใบกำกับ</th>
         <th style="padding:3px 6px;text-align:right">ยอด</th>
         <th style="padding:3px 6px;text-align:center">สถานะ</th>
+        <th style="padding:3px 6px;text-align:center;width:30px">ไฟล์</th>
       </tr></thead>
-      <tbody>${allRecs.map(r=>`<tr style="border-bottom:1px solid #f0f4f9;">
+      <tbody>${allRecs.map(r=>`<tr style="border-bottom:1px solid #eef1f5;">
+        <td style="padding:3px 6px;text-align:center"><input type="checkbox" class="bcp-bill-chk" value="${r.id}" ${r.creditStatus==='paid'?'disabled checked':''} onchange="updateBcpSelectedTotal()"></td>
         <td style="padding:3px 6px;color:var(--primary);font-weight:600">${r.no}</td>
         <td style="padding:3px 6px">${fmtDate(r.date)}</td>
         <td style="padding:3px 6px;color:var(--text-muted)">${r.taxInvoiceNo||'-'}</td>
         <td style="padding:3px 6px;text-align:right;font-weight:600">฿${fmt(r.total)}</td>
         <td style="padding:3px 6px;text-align:center">${r.creditStatus==='paid'?'<span style="color:#16a34a;font-size:11px">✅ จ่ายแล้ว</span>':'<span style="color:var(--warning);font-size:11px">⏳ ค้าง</span>'}</td>
+        <td style="padding:3px 6px;text-align:center">${(r.files&&r.files.length)?`<button style="border:none;background:none;cursor:pointer;font-size:14px" onclick="viewRecord(${r.id})" title="ดูเอกสารแนบ">📎</button>`:'-'}</td>
       </tr>`).join('')}</tbody>
-    </table>`;
-    document.getElementById('bcp-bill-list').style.display='none'; // start hidden
+    </table>
+    <div id="bcp-selected-total" style="margin-top:6px;font-size:12px;font-weight:600;color:var(--primary);text-align:right"></div>`;
+    // Show bill list open if there are unpaid bills, hidden if all paid
+    document.getElementById('bcp-bill-list').style.display=hasUnpaid?'block':'none';
+    if(hasUnpaid) document.getElementById('bcp-toggle-bills').textContent='🔼 ซ่อนรายการบิล';
+    updateBcpSelectedTotal();
   }
 
   openModal('modal-bulk-cell-pay');
@@ -3310,10 +3783,27 @@ function toggleBcpBillList(){
   btn.textContent=hidden?'🔼 ซ่อนรายการบิล':'📄 ดูรายการบิล';
 }
 
+function toggleBcpSelectAll(el){
+  const chks=document.querySelectorAll('.bcp-bill-chk:not(:disabled)');
+  chks.forEach(c=>{c.checked=el.checked;});
+  updateBcpSelectedTotal();
+}
+function updateBcpSelectedTotal(){
+  const chks=document.querySelectorAll('.bcp-bill-chk:checked:not(:disabled)');
+  let total=0;
+  chks.forEach(c=>{
+    const r=DB.records.find(x=>x.id==c.value);
+    if(r) total+=r.total||0;
+  });
+  const el=document.getElementById('bcp-selected-total');
+  if(el) el.textContent=chks.length?`เลือก ${chks.length} รายการ — รวม ฿${fmt(total)}`:'';
+}
+
 function deleteBcpSavedFile(suppId, month, fileIdx){
   const bd=DB.bulkDocs.find(x=>String(x.suppId)===String(suppId)&&x.month===month);
   if(!bd||!bd.files) return;
-  bd.files.splice(fileIdx,1);
+  const removed=bd.files.splice(fileIdx,1);
+  if(removed[0]&&removed[0].fileId) FileStore.delete(removed[0].fileId);
   save();
   // Re-open to refresh
   const suppName=document.getElementById('bcp-supp-name').textContent.split(' — ')[0];
@@ -3339,8 +3829,12 @@ function saveBulkCellPay(){
     return;
   }
 
-  // Records that are still unpaid — mark them paid
-  const unpaidRecs=allRecs.filter(r=>r.creditStatus!=='paid');
+  // Records selected via checkboxes — only mark checked unpaid records
+  const checkedIds=new Set(Array.from(document.querySelectorAll('.bcp-bill-chk:checked:not(:disabled)')).map(c=>parseInt(c.value)));
+  const unpaidRecs=allRecs.filter(r=>r.creditStatus!=='paid'&&checkedIds.has(r.id));
+  if(!unpaidRecs.length&&!document.querySelectorAll('.bcp-bill-chk:checked:not(:disabled)').length){
+    showToast('⚠️ กรุณาเลือกรายการที่ต้องการชำระ','danger');return;
+  }
 
   // Save/update bulk doc entry
   let bd=DB.bulkDocs.find(x=>String(x.suppId)===String(suppId)&&x.month===month);
@@ -3376,12 +3870,33 @@ function saveBulkCellPay(){
           date:pd, company:r.company, supplier:r.supplier, supplierId:r.supplierId,
           payeeTaxId:r.payeeTaxId||'',
           whtType:r.whtType||'53', whtRate:r.whtRate||3,
-          baseAmount:r.beforeVat, whtAmount:r.whtAmount, description:r.description,
+          baseAmount:r.beforeVat, vatAmount:r.vat||0, totalAmount:r.total||0, whtAmount:r.whtAmount, description:r.description,
           status:'active', editHistory:[], createdAt:new Date().toISOString()
         });
         r.whtDocId=DB.whtSeq;
         whtCreated++;
       });
+      // ──────────────────────────────────────────────────────────────────
+
+      // ── สร้าง cashflow entry ตัดยอดคงเหลือสำหรับเครดิตที่ชำระ ──────
+      if(unpaidRecs.length){
+        const totalPaid=unpaidRecs.reduce((s,r)=>s+(r.total||0),0);
+        const totalWht=unpaidRecs.reduce((s,r)=>s+(r.whtAmount||0),0);
+        const netPaid=totalPaid-totalWht; // จ่ายจริงหลังหัก ณ ที่จ่าย
+        if(netPaid>0){
+          DB.cashSeq++;
+          const d3=new Date(pd);
+          const cfNo=`CRPAY-${d3.getFullYear()}${String(d3.getMonth()+1).padStart(2,'0')}-${String(DB.cashSeq).padStart(4,'0')}`;
+          const cfCompany=unpaidRecs[0].company||'';
+          DB.cashflows.push({
+            id:DB.cashSeq, no:cfNo, date:pd, company:cfCompany,
+            type:'credit-pay', channel:proofType||'transfer',
+            amount:netPaid,
+            remark:`ชำระเครดิต ${suppName} (${unpaidRecs.length} บิล) ยอดรวม ฿${fmt(totalPaid)}${totalWht>0?' หัก ณ จ่าย ฿'+fmt(totalWht):''}`,
+            status:'active', createdAt:new Date().toISOString()
+          });
+        }
+      }
       // ──────────────────────────────────────────────────────────────────
 
       save();
@@ -3419,7 +3934,7 @@ function handleBulkCellFile(input){
       fr.readAsDataURL(f);
     } else {
       const sp=document.createElement('span');
-      sp.style.cssText='font-size:11px;background:#f0f4f9;padding:2px 8px;border-radius:4px;margin:2px;display:inline-block';
+      sp.style.cssText='font-size:11px;background:#f5f7fa;padding:2px 8px;border-radius:4px;margin:2px;display:inline-block';
       sp.textContent='📎 '+f.name;
       preview.appendChild(sp);
     }
@@ -3470,7 +3985,7 @@ function viewPdfFile(recId,fileIdx){
 }
 
 // Compress image before base64 storage (reduces localStorage usage ~80-90%)
-function compressImage(file, maxWidth=1400, quality=0.72){
+function compressImage(file, maxWidth=800, quality=0.5){
   return new Promise((res,rej)=>{
     if(!file.type.startsWith('image/')){
       const fr=new FileReader();
@@ -3695,21 +4210,269 @@ function printBulk(suppId, month){
   const sumTotal=items.reduce((a,p)=>a+p.total,0);
   const sumWHT=items.reduce((a,p)=>a+p.whtAmount,0);
   const sumNet=items.reduce((a,p)=>a+p.netPay,0);
+  const co=DB.companies[items[0]?.company]||{name:'',bankName:'',bankAccount:'',bankHolder:''};
   openPrintWindow(`<html><head><meta charset="UTF-8"><title>ใบรวมจ่าย</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>body{font-family:'Sarabun',sans-serif;padding:30px;font-size:13px}h2{text-align:center}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border:1px solid #999;padding:5px 8px}th{background:#f0f0f0;text-align:center}.sum{text-align:right;font-weight:bold}</style>
+  <style>
+    @page{size:A4 landscape;margin:10mm 12mm}
+    *{box-sizing:border-box}
+    body{font-family:'Sarabun',sans-serif;padding:20px;font-size:12px;color:#000;margin:0}
+    h2{text-align:center;font-size:18px;margin:0 0 8px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid #666;padding:4px 6px}
+    th{background:#e8edf3;text-align:center;font-weight:700;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    .sum{text-align:right;font-weight:600}
+    thead{display:table-header-group}
+    tfoot{display:table-footer-group}
+    @media print{.no-print{display:none !important}}
+  </style>
   </head><body>
   <h2>ใบรวมจ่าย</h2>
-  <p><strong>Supplier:</strong> ${supp?.name} &nbsp; <strong>เดือน:</strong> ${month}</p>
-  <table><thead><tr><th>เลขที่</th><th>วันที่</th><th>รายการ</th><th>เลขใบกำกับ</th><th>ก่อน VAT</th><th>VAT</th><th>รวม</th><th>หัก ณ จ่าย</th><th>สุทธิ</th></tr></thead>
-  <tbody>${items.map(p=>`<tr><td>${p.no}</td><td>${fmtDate(p.date)}</td><td>${p.description}</td><td>${p.taxInvoiceNo||'-'}</td><td class="sum">${fmt(p.beforeVat)}</td><td class="sum">${fmt(p.vat)}</td><td class="sum">${fmt(p.total)}</td><td class="sum">${fmt(p.whtAmount)}</td><td class="sum">${fmt(p.netPay)}</td></tr>`).join('')}</tbody>
-  <tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold">รวม</td><td class="sum">${fmt(items.reduce((a,p)=>a+p.beforeVat,0))}</td><td class="sum">${fmt(items.reduce((a,p)=>a+p.vat,0))}</td><td class="sum">${fmt(sumTotal)}</td><td class="sum">${fmt(sumWHT)}</td><td class="sum">${fmt(sumNet)}</td></tr></tfoot>
+  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+    <div><strong>Supplier:</strong> ${supp?.name||'-'}</div>
+    <div><strong>เดือน:</strong> ${month}</div>
+  </div>
+  <table><thead><tr><th style="width:30px">ลำดับ</th><th>เลขที่</th><th>วันที่</th><th>รายการ</th><th>เลขใบกำกับ</th><th>ก่อน VAT</th><th>VAT</th><th>รวม</th><th>หัก ณ จ่าย</th><th>สุทธิ</th></tr></thead>
+  <tbody>${items.map((p,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${p.no}</td><td>${fmtDate(p.date)}</td><td>${p.description}</td><td>${p.taxInvoiceNo||'-'}</td><td class="sum">${fmt(p.beforeVat)}</td><td class="sum">${fmt(p.vat)}</td><td class="sum">${fmt(p.total)}</td><td class="sum">${fmt(p.whtAmount)}</td><td class="sum">${fmt(p.netPay)}</td></tr>`).join('')}</tbody>
+  <tfoot><tr style="font-weight:700;background:#f5f7fa;print-color-adjust:exact;-webkit-print-color-adjust:exact"><td colspan="5" style="text-align:right;font-weight:bold">รวมทั้งสิ้น</td><td class="sum">${fmt(items.reduce((a,p)=>a+p.beforeVat,0))}</td><td class="sum">${fmt(items.reduce((a,p)=>a+p.vat,0))}</td><td class="sum">${fmt(sumTotal)}</td><td class="sum">${fmt(sumWHT)}</td><td class="sum">${fmt(sumNet)}</td></tr></tfoot>
   </table>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:30px">
-    <div style="border:1px solid #aaa;padding:20px;text-align:center;min-height:80px;border-radius:6px">ผู้จ่ายเงิน<br><br><br>__________________________</div>
-    <div style="border:1px solid #aaa;padding:20px;text-align:center;min-height:80px;border-radius:6px">ผู้รับเงิน<br><br><br>__________________________</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:24px">
+    <div style="border:1px solid #aaa;padding:16px;text-align:center;min-height:70px;border-radius:6px">ผู้จ่ายเงิน<br><br><br>__________________________</div>
+    <div style="border:1px solid #aaa;padding:16px;text-align:center;min-height:70px;border-radius:6px">ผู้รับเงิน<br><br><br>__________________________</div>
   </div>
   <div class="no-print" style="text-align:center;margin:16px 0;">
+    <button onclick="window.print()" style="padding:10px 28px;font-size:14px;cursor:pointer;background:#1a3a5c;color:white;border:none;border-radius:6px;margin-right:8px">🖨️ พิมพ์</button>
+    <button onclick="window.close()" style="padding:10px 28px;font-size:14px;cursor:pointer;border:1px solid #ccc;border-radius:6px;background:#fff">✕ ปิด</button>
+  </div>
+  </body></html>`);
+}
+
+// ============================================================
+// PAYMENT VOUCHER (ใบสำคัญจ่าย) & EXPENSE SUMMARY (สรุปค่าใช้จ่าย)
+// ============================================================
+function printPaymentVoucher(id){
+  const r=DB.records.find(x=>x.id===id);
+  if(!r){showToast('ไม่พบรายการ','danger');return;}
+  if(r.paytype==='credit'&&r.creditStatus!=='paid'){
+    showAlert('⚠️ รายการเครดิตยังไม่ได้ชำระ<br>ใบสำคัญจ่ายจะออกได้เมื่อทำ <b>รวมยอดจ่าย Supplier</b> แล้วเท่านั้น',true);
+    return;
+  }
+  const co=DB.companies[r.company]||{name:compShort(r.company),taxId:'',address:'',branch:'สำนักงานใหญ่'};
+  const supp=DB.suppliers.find(s=>s.id==r.supplierId)||{name:r.supplier,taxId:r.payeeTaxId||'',address:''};
+  const payLabel={cash:'จ่ายเงินสด',transfer:'โอนเงิน',credit:'เครดิต',owner:'เจ้านายจ่ายเอง'};
+  const d=new Date(r.date);
+  const dateThai=`${d.getDate()} / ${d.getMonth()+1} / ${d.getFullYear()+543}`;
+  // Thai baht words (reuse simplified version)
+  function toBahtWords(n){
+    const u=['','สิบ','ร้อย','พัน','หมื่น','แสน','ล้าน'];
+    const dg=['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
+    n=Math.round(n*100)/100;
+    const w2=Math.floor(n);const s2=Math.round((n-w2)*100);
+    let r2='';const ws=w2.toString();
+    if(w2===0)r2='ศูนย์';
+    else{const dd=ws.split('').reverse();for(let i=dd.length-1;i>=0;i--){const v=parseInt(dd[i]);if(v===0)continue;if(i===0&&v===1&&ws.length>1)r2+='เอ็ด';else if(i>0&&v===1&&u[i]==='สิบ')r2+='สิบ';else if(i>0&&v===2&&u[i]==='สิบ')r2+='ยี่สิบ';else r2+=dg[v]+u[i];}}
+    r2+='บาท';r2+=s2>0?(s2>=10?dg[Math.floor(s2/10)]+'สิบ':'')+(s2%10===1&&s2>10?'เอ็ด':s2%10===0?'':dg[s2%10])+'สตางค์':'ถ้วน';
+    return r2;
+  }
+  openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ใบสำคัญจ่าย ${r.no}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page{size:A4 portrait;margin:12mm 15mm}
+    *{box-sizing:border-box}
+    body{font-family:'Sarabun',sans-serif;font-size:12px;color:#000;margin:0;padding:20px}
+    @media print{.no-print{display:none !important}}
+    .pv-border{border:2px solid #333;padding:20px 24px;min-height:auto}
+    .pv-title{text-align:center;font-size:20px;font-weight:700;margin-bottom:2px}
+    .pv-subtitle{text-align:center;font-size:11px;color:#555;margin-bottom:12px}
+    .pv-company{text-align:center;font-size:14px;font-weight:600;margin-bottom:2px}
+    .pv-addr{text-align:center;font-size:10.5px;color:#444;margin-bottom:10px}
+    .pv-row{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px}
+    .pv-row .label{font-weight:600;min-width:100px}
+    .pv-row .val{border-bottom:1px dotted #999;flex:1;padding:0 6px}
+    table.pv-tbl{width:100%;border-collapse:collapse;margin:10px 0}
+    table.pv-tbl th,table.pv-tbl td{border:1px solid #666;padding:5px 8px;font-size:11.5px}
+    table.pv-tbl th{background:#e8edf3;font-weight:700;text-align:center;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    .pv-total-row td{font-weight:700;background:#f5f7fa;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    .sign-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:20px;font-size:11px}
+    .sign-box{border:1px solid #aaa;padding:14px 10px 8px;text-align:center;border-radius:4px;min-height:80px;display:flex;flex-direction:column;justify-content:flex-end}
+    .sign-line{border-top:1px solid #333;margin:0 20px;padding-top:4px}
+  </style>
+  </head><body>
+  <div class="pv-border">
+    <div class="pv-company">${co.name}</div>
+    <div class="pv-addr">${co.address||''} ${co.branch?'('+co.branch+')':''} เลขผู้เสียภาษี: ${co.taxId||'-'}</div>
+    <div class="pv-title">ใบสำคัญจ่าย</div>
+    <div class="pv-subtitle">PAYMENT VOUCHER</div>
+
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+      <div style="flex:1">
+        <div class="pv-row"><span class="label">เลขที่:</span><span class="val">${r.no}</span></div>
+        <div class="pv-row"><span class="label">วันที่:</span><span class="val">${dateThai}</span></div>
+        <div class="pv-row"><span class="label">จ่ายให้ (Supplier):</span><span class="val">${supp.name}</span></div>
+        <div class="pv-row"><span class="label">เลขผู้เสียภาษี:</span><span class="val">${supp.taxId||r.payeeTaxId||'-'}</span></div>
+      </div>
+      <div style="width:180px;text-align:right">
+        <div style="font-size:11px;margin-bottom:4px"><strong>ประเภทการจ่าย:</strong></div>
+        <div style="font-size:13px;font-weight:700;color:#1a3a5c;border:1px solid #1a3a5c;padding:4px 10px;border-radius:4px;display:inline-block">${payLabel[r.paytype]||r.paytype}</div>
+      </div>
+    </div>
+
+    <table class="pv-tbl">
+      <thead>
+        <tr>
+          <th style="width:30px">ลำดับ</th>
+          <th>รายการ</th>
+          <th style="width:100px">ประเภทค่าใช้จ่าย</th>
+          <th style="width:80px">เลขใบกำกับ</th>
+          <th style="width:85px;text-align:right">จำนวนเงิน</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="text-align:center">1</td>
+          <td>${r.description}${r.plate?' <em>('+r.plate+')</em>':''}</td>
+          <td style="font-size:10.5px">${r.categoryName||'-'}</td>
+          <td style="font-size:10.5px">${r.taxInvoiceNo||'-'}</td>
+          <td style="text-align:right">฿${fmt(r.beforeVat)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table style="width:50%;margin-left:auto;border-collapse:collapse;font-size:12px">
+      <tr><td style="padding:3px 8px;border:1px solid #666">ยอดก่อน VAT</td><td style="padding:3px 8px;border:1px solid #666;text-align:right;width:100px">฿${fmt(r.beforeVat)}</td></tr>
+      <tr><td style="padding:3px 8px;border:1px solid #666">VAT 7%</td><td style="padding:3px 8px;border:1px solid #666;text-align:right">${r.vat?'฿'+fmt(r.vat):'-'}</td></tr>
+      <tr style="font-weight:700"><td style="padding:3px 8px;border:1px solid #666">รวมทั้งสิ้น</td><td style="padding:3px 8px;border:1px solid #666;text-align:right">฿${fmt(r.total)}</td></tr>
+      ${r.whtAmount?`<tr style="color:#d97706"><td style="padding:3px 8px;border:1px solid #666">หัก ณ ที่จ่าย (${r.whtRate||3}%)</td><td style="padding:3px 8px;border:1px solid #666;text-align:right">-฿${fmt(r.whtAmount)}</td></tr>
+      <tr style="font-weight:700;color:#166534"><td style="padding:3px 8px;border:1px solid #666;background:#f0fdf4;print-color-adjust:exact;-webkit-print-color-adjust:exact">จ่ายสุทธิ</td><td style="padding:3px 8px;border:1px solid #666;text-align:right;background:#f0fdf4;print-color-adjust:exact;-webkit-print-color-adjust:exact">฿${fmt(r.total-r.whtAmount)}</td></tr>`:''}
+    </table>
+
+    <div style="margin-top:10px;font-size:11.5px">
+      <strong>จำนวนเงิน (ตัวอักษร):</strong> ${toBahtWords(r.whtAmount?(r.total-r.whtAmount):r.total)}
+    </div>
+
+    ${r.remark?`<div style="margin-top:6px;font-size:11px;color:#555"><strong>หมายเหตุ:</strong> ${r.remark}</div>`:''}
+
+    <div class="sign-grid">
+      <div class="sign-box">
+        <div class="sign-line">ผู้จ่ายเงิน</div>
+        <div style="font-size:10px;color:#666;margin-top:4px">วันที่ ____/____/____</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line">ผู้รับเงิน</div>
+        <div style="font-size:10px;color:#666;margin-top:4px">วันที่ ____/____/____</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-line">ผู้อนุมัติ</div>
+        <div style="font-size:10px;color:#666;margin-top:4px">วันที่ ____/____/____</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-print" style="text-align:center;margin:16px 0">
+    <button onclick="window.print()" style="padding:10px 28px;font-size:14px;cursor:pointer;background:#1a3a5c;color:white;border:none;border-radius:6px;margin-right:8px">🖨️ พิมพ์</button>
+    <button onclick="window.close()" style="padding:10px 28px;font-size:14px;cursor:pointer;border:1px solid #ccc;border-radius:6px;background:#fff">✕ ปิด</button>
+  </div>
+  </body></html>`);
+}
+
+function printExpenseSummary(){
+  // ใช้ filteredRecs ที่กรองไว้แล้วจากหน้ารายการทั้งหมด (ตรงกับที่แสดงผลอยู่)
+  const recs=[...filteredRecs].filter(r=>r.status==='active').sort((a,b)=>a.date.localeCompare(b.date));
+  const comp=document.getElementById('f-company')?.value||'';
+  const cat=document.getElementById('f-category')?.value||'';
+  const from=document.getElementById('f-from')?.value||'';
+  const to=document.getElementById('f-to')?.value||'';
+
+  if(!recs.length){showToast('ไม่พบรายการ','danger');return;}
+
+  const co=comp?DB.companies[comp]||{name:compShort(comp)}:{name:'ทุกบริษัท'};
+  const catObj=cat?DB.categories.find(c=>String(c.id)===String(cat)):null;
+  const sumBV=recs.reduce((s,r)=>s+r.beforeVat,0);
+  const sumVat=recs.reduce((s,r)=>s+r.vat,0);
+  const sumTotal=recs.reduce((s,r)=>s+r.total,0);
+  const sumWHT=recs.reduce((s,r)=>s+(r.whtAmount||0),0);
+  const sumNet=recs.reduce((s,r)=>s+(r.netPay||r.total),0);
+  const dateLabel=from&&to?`${fmtDate(from)} ถึง ${fmtDate(to)}`:from?`ตั้งแต่ ${fmtDate(from)}`:to?`ถึง ${fmtDate(to)}`:'ทั้งหมด';
+
+  openPrintWindow(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>สรุปค่าใช้จ่าย</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page{size:A4 landscape;margin:10mm 12mm}
+    *{box-sizing:border-box}
+    body{font-family:'Sarabun',sans-serif;font-size:11px;color:#000;margin:0;padding:16px}
+    @media print{.no-print{display:none !important}}
+    h2{text-align:center;font-size:17px;font-weight:700;margin:0 0 4px}
+    .sub{text-align:center;font-size:11.5px;color:#444;margin-bottom:10px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #666;padding:4px 6px}
+    th{background:#e8edf3;font-weight:700;text-align:center;font-size:10.5px;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    .r{text-align:right}
+    .sum-row td{font-weight:700;background:#f5f7fa;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    thead{display:table-header-group}
+    .sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:20px;font-size:11px}
+    .sign-box{border:1px solid #aaa;padding:14px 10px 8px;text-align:center;border-radius:4px;min-height:70px;display:flex;flex-direction:column;justify-content:flex-end}
+    .sign-line{border-top:1px solid #333;margin:0 30px;padding-top:4px}
+  </style>
+  </head><body>
+  <h2>สรุปรายการค่าใช้จ่าย</h2>
+  <div class="sub">${co.name} | ช่วงเวลา: ${dateLabel}${catObj?' | ประเภท: '+catObj.name:''}</div>
+
+  <table>
+    <thead><tr>
+      <th style="width:28px">ลำดับ</th>
+      <th style="width:90px">เลขที่</th>
+      <th style="width:70px">วันที่</th>
+      <th style="width:50px">บริษัท</th>
+      <th style="width:55px">ประเภทจ่าย</th>
+      <th>Supplier</th>
+      <th>รายการ</th>
+      <th style="width:80px">ประเภทค่าใช้จ่าย</th>
+      <th style="width:70px">เลขใบกำกับ</th>
+      <th style="width:65px" class="r">ก่อน VAT</th>
+      <th style="width:50px" class="r">VAT</th>
+      <th style="width:65px" class="r">รวม</th>
+      <th style="width:55px" class="r">หัก ณ จ่าย</th>
+      <th style="width:65px" class="r">สุทธิ</th>
+    </tr></thead>
+    <tbody>
+      ${recs.map((r,i)=>{
+        const pl={cash:'สด',transfer:'โอน',credit:'เครดิต',owner:'เจ้านาย'};
+        return `<tr>
+          <td style="text-align:center">${i+1}</td>
+          <td style="font-size:10px">${r.no}</td>
+          <td>${fmtDate(r.date)}</td>
+          <td style="font-size:10px">${compShort(r.company)}</td>
+          <td style="font-size:10px">${pl[r.paytype]||r.paytype}</td>
+          <td style="font-size:10px">${r.supplier||'-'}</td>
+          <td style="font-size:10px">${r.description}</td>
+          <td style="font-size:9.5px">${r.categoryName||'-'}</td>
+          <td style="font-size:10px">${r.taxInvoiceNo||'-'}</td>
+          <td class="r">${fmt(r.beforeVat)}</td>
+          <td class="r">${fmt(r.vat)}</td>
+          <td class="r" style="font-weight:600">${fmt(r.total)}</td>
+          <td class="r" style="color:#d97706">${r.whtAmount?fmt(r.whtAmount):'-'}</td>
+          <td class="r" style="font-weight:600">${fmt(r.netPay||r.total)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+    <tfoot>
+      <tr class="sum-row">
+        <td colspan="9" style="text-align:right;font-weight:700">รวมทั้งสิ้น (${recs.length} รายการ)</td>
+        <td class="r">${fmt(sumBV)}</td>
+        <td class="r">${fmt(sumVat)}</td>
+        <td class="r">${fmt(sumTotal)}</td>
+        <td class="r">${fmt(sumWHT)}</td>
+        <td class="r">${fmt(sumNet)}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="sign-grid">
+    <div class="sign-box"><div class="sign-line">ผู้จัดทำ</div><div style="font-size:10px;color:#666;margin-top:4px">วันที่ ____/____/____</div></div>
+    <div class="sign-box"><div class="sign-line">ผู้อนุมัติ</div><div style="font-size:10px;color:#666;margin-top:4px">วันที่ ____/____/____</div></div>
+  </div>
+
+  <div class="no-print" style="text-align:center;margin:16px 0">
     <button onclick="window.print()" style="padding:10px 28px;font-size:14px;cursor:pointer;background:#1a3a5c;color:white;border:none;border-radius:6px;margin-right:8px">🖨️ พิมพ์</button>
     <button onclick="window.close()" style="padding:10px 28px;font-size:14px;cursor:pointer;border:1px solid #ccc;border-radius:6px;background:#fff">✕ ปิด</button>
   </div>
@@ -3727,17 +4490,27 @@ function switchWHTTab(tab,el){
   if(tab==='monthly')renderWHTMonthly();
 }
 
-function renderWHTList(){
+let whtPage=1, whtPerPage=15;
+function renderWHTList(resetPage){
+  if(resetPage) whtPage=1;
   const fc=document.getElementById('wf-company').value;
   const fm=document.getElementById('wf-month').value;
   const ft=document.getElementById('wf-type').value;
+  const fs=(document.getElementById('wf-supplier')?.value||'').trim().toLowerCase();
   const list=DB.whtDocs.filter(w=>{
     if(fc&&w.company!==fc)return false;
     if(fm&&!w.date.startsWith(fm))return false;
     if(ft&&w.whtType!==ft)return false;
+    if(fs&&!(w.supplier||'').toLowerCase().includes(fs))return false;
     return true;
   }).sort((a,b)=>b.date.localeCompare(a.date));
-  document.getElementById('wht-tbody').innerHTML=list.map(w=>`<tr style="${w.status==='void'?'opacity:0.45;text-decoration:line-through':''}">
+
+  const total=list.length;
+  const start=(whtPage-1)*whtPerPage;
+  const pageList=list.slice(start,start+whtPerPage);
+
+  document.getElementById('wht-tbody').innerHTML=pageList.map((w,i)=>`<tr style="${w.status==='void'?'opacity:0.45;text-decoration:line-through':''}">
+    <td style="color:var(--text-muted);font-size:10px;text-align:center">${start+i+1}</td>
     <td style="font-weight:600;color:var(--primary);font-size:11px">${w.no}${w.editHistory&&w.editHistory.length?'<span class="edited-dot" title="เคยแก้ไข"></span>':''}</td>
     <td>${fmtDate(w.date)}</td>
     <td style="font-size:11px">${compShort(w.company)}</td>
@@ -3748,7 +4521,31 @@ function renderWHTList(){
     <td style="text-align:right;font-weight:700;color:var(--danger)">฿${fmt(w.whtAmount)}</td>
     <td><button class="btn btn-outline btn-xs" onclick="openEditWHT(${w.id})">✏️</button></td>
     <td><button class="btn btn-primary btn-xs" onclick="viewWHTDoc(${w.id})">📄</button></td>
-  </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">ไม่พบรายการ</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:20px">ไม่พบรายการ</td></tr>';
+
+  // Pagination
+  const pg=document.getElementById('wht-pagination');
+  const totalPg=Math.ceil(total/whtPerPage);
+  pg.innerHTML='';
+  const ppWrap=document.createElement('span');
+  ppWrap.style.cssText='display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:11px;color:var(--text-muted)';
+  ppWrap.innerHTML=`แสดง <select onchange="whtPerPage=parseInt(this.value);whtPage=1;renderWHTList()" style="padding:2px 4px;border:1px solid var(--border);border-radius:4px;font-size:11px">
+    ${[15,25,50,100].map(n=>`<option value="${n}" ${n===whtPerPage?'selected':''}>${n}</option>`).join('')}
+  </select> รายการ/หน้า (${total} รายการ)`;
+  pg.appendChild(ppWrap);
+  for(let i=1;i<=Math.min(totalPg,10);i++){
+    const btn=document.createElement('button');
+    btn.className='page-btn'+(i===whtPage?' active':'');
+    btn.textContent=i;
+    btn.onclick=()=>{whtPage=i;renderWHTList();window.scrollTo({top:0,behavior:'smooth'});};
+    pg.appendChild(btn);
+  }
+  if(totalPg>10){
+    const dots=document.createElement('span');dots.textContent='...';dots.style.cssText='padding:0 4px;color:var(--text-muted)';pg.appendChild(dots);
+    const bLast=document.createElement('button');bLast.className='page-btn';bLast.textContent=totalPg;
+    bLast.onclick=()=>{whtPage=totalPg;renderWHTList();window.scrollTo({top:0,behavior:'smooth'});};
+    pg.appendChild(bLast);
+  }
 }
 
 function openEditWHT(id){
@@ -3864,6 +4661,9 @@ function viewWHTDoc(id){
       </tfoot>
     </table>
     
+    <div style="font-size:10px;margin-bottom:5px;padding:4px 8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;font-weight:600;color:#166534;">
+      💰 จ่ายสุทธิ (หลังหัก ณ ที่จ่าย): ฿${fmt((w.totalAmount||w.baseAmount+(w.vatAmount||0)) - w.whtAmount)}
+    </div>
     <div style="font-size:9.5px;margin-bottom:4px;">รวมเงินภาษีที่หักนำส่ง (ตัวอักษร) <u>${toThaiWords(w.whtAmount)}</u></div>
 
     <div style="font-size:9px;margin-bottom:4px;">
@@ -3902,7 +4702,7 @@ function printWHT(){
   if(!wid){showAlert('⚠️ ไม่พบข้อมูลใบหัก ณ ที่จ่าย กรุณาคลิกเปิดดูก่อน',true);return;}
   const w=DB.whtDocs.find(x=>x.id==wid);
   if(!w){showAlert('⚠️ ไม่พบข้อมูล',true);return;}
-  const co=DB.companies.find(c=>c.id===w.company)||{name:compShort(w.company),taxId:'',address:'',branch:'สำนักงานใหญ่'};
+  const co=DB.companies[w.company]||{name:compShort(w.company),taxId:'',address:'',branch:'สำนักงานใหญ่'};
   const r=DB.records.find(x=>x.id===w.recId)||{};
   const supp=DB.suppliers.find(s=>s.id==r.supplierId)||{name:w.supplier,taxId:w.payeeTaxId||'',address:''};
   const whtDate=new Date(w.date);
@@ -4050,6 +4850,11 @@ function printWHT(){
       <u style="display:inline-block;min-width:220px;text-align:center">${toThai(w.whtAmount)}</u>
     </div>
     
+    <!-- Net payment -->
+    <div style="font-size:11px;margin-bottom:4px;padding:3px 6px;border:1px solid #16a34a;border-radius:3px;font-weight:700;color:#166534;background:#f0fdf4">
+      💰 จ่ายสุทธิ (หลังหัก ณ ที่จ่าย): ฿${fmt((w.totalAmount||w.baseAmount+(w.vatAmount||0)) - w.whtAmount)}
+    </div>
+
     <!-- Fund row -->
     <div style="font-size:9.5px;border:1px solid #aaa;padding:3px 6px;margin-bottom:4px">
       <b>เงินที่จ่ายเข้า</b> กบข./กสจ./กองทุนสงเคราะห์ครูโรงเรียนเอกชน
@@ -4209,7 +5014,7 @@ function printDailyById(id){
 }
 
 function buildDailyPrintHTML(date,company,amount,remark,items){
-  const co=DB.companies.find(c=>c.id===company)||{name:compShort(company)};
+  const co=DB.companies[company]||{name:compShort(company)};
   const sum=items.reduce((a,x)=>a+(x.amt||0),0);
   const itemRows=items.map((x,i)=>`
     <tr style="border-bottom:1px solid #e2e8f0;background:${i%2===0?'#fff':'#f8fafc'}">
@@ -4283,12 +5088,19 @@ function printDailyReport(){
   document.getElementById('daily-print-content').innerHTML=buildDailyPrintHTML(date,company,amount,remark,dailyItems);
   openModal('modal-daily-print');
 }
-function renderDailyHistory(){
+let dailyPage=1, dailyPP=15;
+function renderDailyHistory(resetPage){
+  if(resetPage) dailyPage=1;
   const fm=document.getElementById('dh-month').value;
   const fc=document.getElementById('dh-company').value;
   const list=DB.dailyReports.filter(d=>(!fm||d.date.startsWith(fm))&&(!fc||d.company===fc)).sort((a,b)=>b.date.localeCompare(a.date));
-  document.getElementById('daily-tbody').innerHTML=list.map((d,i)=>`<tr>
-    <td style="color:var(--text-muted);font-size:11px">${i+1}</td>
+
+  const total=list.length;
+  const start=(dailyPage-1)*dailyPP;
+  const pageList=list.slice(start,start+dailyPP);
+
+  document.getElementById('daily-tbody').innerHTML=pageList.map((d,i)=>`<tr>
+    <td style="color:var(--text-muted);font-size:11px">${start+i+1}</td>
     <td style="font-weight:600;color:var(--primary);font-size:11px">${d.no}</td>
     <td>${fmtDate(d.date)}</td>
     <td>${compShort(d.company)}</td>
@@ -4303,12 +5115,24 @@ function renderDailyHistory(){
       <button class="btn btn-danger btn-xs" onclick="deleteDailyReport(${d.id})" title="ลบ">🗑️</button>
     </td>
   </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">ไม่พบรายการ</td></tr>';
+
+  const pg=document.getElementById('daily-pagination');
+  const totalPg=Math.ceil(total/dailyPP);
+  pg.innerHTML='';
+  if(totalPg>1){
+    const info=document.createElement('span');info.style.cssText='font-size:11px;color:var(--text-muted);margin-right:10px';
+    info.textContent=`${total} รายการ`;pg.appendChild(info);
+    for(let i=1;i<=Math.min(totalPg,10);i++){
+      const btn=document.createElement('button');btn.className='page-btn'+(i===dailyPage?' active':'');btn.textContent=i;
+      btn.onclick=()=>{dailyPage=i;renderDailyHistory();window.scrollTo({top:0,behavior:'smooth'});};pg.appendChild(btn);
+    }
+  }
 }
 
 function previewDailyReport(id){
   const d=DB.dailyReports.find(x=>x.id===id);
   if(!d)return;
-  const comp=DB.companies.find(c=>c.id===d.company)||{name:d.company||compShort(d.company),address:'',taxId:''};
+  const comp=DB.companies[d.company]||{name:d.company||compShort(d.company),address:'',taxId:''};
   const itemsHtml=(d.items||[]).map((it,i)=>
     `<tr style="border-bottom:1px solid #eee;">
       <td style="padding:6px 8px;text-align:center;color:#999">${i+1}</td>
@@ -4325,7 +5149,7 @@ function previewDailyReport(id){
       <span>วันที่: <strong>${fmtDate(d.date)}</strong></span>
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
-      <thead><tr style="background:#f0f4f9;">
+      <thead><tr style="background:#f5f7fa;">
         <th style="padding:6px 8px;text-align:center;width:36px">#</th>
         <th style="padding:6px 8px;text-align:left">ผู้เบิก</th>
         <th style="padding:6px 8px;text-align:left">รายการ</th>
@@ -4553,6 +5377,132 @@ function delSupplier(id){
 }
 
 // ============================================================
+// IMPORT SUPPLIER FROM EXCEL
+// ============================================================
+function importSupplierExcel(input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length){showToast('ไฟล์ว่างเปล่า','danger');return;}
+
+      // Get column names from first row
+      const cols=Object.keys(rows[0]);
+
+      // Show mapping modal
+      const mapHTML=`
+        <div style="margin-bottom:12px;font-size:13px">พบ <strong>${rows.length}</strong> แถว ใน Sheet "${wb.SheetNames[0]}"</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">เลือกคอลัมที่ตรงกับข้อมูลแต่ละช่อง (ไม่มีให้เว้นว่าง)</div>
+        <div class="form-grid" style="gap:8px">
+          ${[
+            {id:'imp-name',label:'ชื่อ Supplier *',required:true},
+            {id:'imp-taxid',label:'เลขผู้เสียภาษี'},
+            {id:'imp-address',label:'ที่อยู่'},
+            {id:'imp-phone',label:'โทรศัพท์'},
+            {id:'imp-type',label:'ประเภท (นิติบุคคล/บุคคลธรรมดา)'},
+            {id:'imp-paytype',label:'ประเภทการชำระ'},
+            {id:'imp-whttype',label:'ภงด. (3/53)'},
+            {id:'imp-whtrate',label:'อัตราหัก ณ ที่จ่าย (%)'},
+            {id:'imp-bank',label:'ชื่อธนาคาร'},
+            {id:'imp-bankacc',label:'เลขบัญชี'},
+            {id:'imp-bankholder',label:'ชื่อบัญชี'},
+          ].map(f=>`<div class="form-group">
+            <label>${f.label}</label>
+            <select id="${f.id}" style="font-size:12px">
+              <option value="">-- ไม่ใช้ --</option>
+              ${cols.map(c=>`<option value="${c}" ${autoMatchCol(c,f.id)?'selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>`).join('')}
+        </div>
+        <div style="margin-top:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px">
+          ⚡ <strong>ตัวอย่างข้อมูลแถวแรก:</strong><br>
+          ${cols.map(c=>`<span style="color:var(--primary);font-weight:600">${c}</span>: ${String(rows[0][c]).substring(0,40)}`).join(' | ')}
+        </div>`;
+
+      document.getElementById('modal-alert-content').innerHTML=`<div style="font-size:18px;margin-bottom:6px">📥 นำเข้า Supplier จาก Excel</div>${mapHTML}`;
+      const cancelBtn=document.getElementById('alert-cancel');
+      const confirmBtn=document.getElementById('alert-confirm');
+      cancelBtn.style.display='';
+      cancelBtn.textContent='ยกเลิก';
+      cancelBtn.onclick=()=>{closeModal('modal-alert');cancelBtn.textContent='ยกเลิก';};
+      confirmBtn.textContent='📥 นำเข้า '+rows.length+' รายการ';
+      confirmBtn.className='btn btn-primary';
+      confirmBtn.onclick=()=>{
+        const getCol=(id)=>document.getElementById(id)?.value||'';
+        const nameCol=getCol('imp-name');
+        if(!nameCol){showToast('กรุณาเลือกคอลัม "ชื่อ Supplier"','danger');return;}
+
+        let added=0,skipped=0;
+        rows.forEach(row=>{
+          const name=String(row[nameCol]||'').trim();
+          if(!name){skipped++;return;}
+          // Check duplicate by name
+          if(DB.suppliers.find(s=>s.name===name)){skipped++;return;}
+
+          const maxId=DB.suppliers.length?Math.max(...DB.suppliers.map(s=>s.id)):0;
+          DB.suppliers.push({
+            id:maxId+1,
+            name,
+            taxId:String(row[getCol('imp-taxid')]||'').trim(),
+            address:String(row[getCol('imp-address')]||'').trim(),
+            phone:String(row[getCol('imp-phone')]||'').trim(),
+            type:String(row[getCol('imp-type')]||'').trim()||'',
+            defaultPayType:String(row[getCol('imp-paytype')]||'').trim()||'',
+            defaultWhtType:parseWhtType(String(row[getCol('imp-whttype')]||'')),
+            defaultWhtRate:parseFloat(row[getCol('imp-whtrate')])||0,
+            bankName:String(row[getCol('imp-bank')]||'').trim(),
+            bankAcc:String(row[getCol('imp-bankacc')]||'').trim(),
+            bankHolder:String(row[getCol('imp-bankholder')]||'').trim(),
+          });
+          added++;
+        });
+
+        save();renderSuppliers();
+        closeModal('modal-alert');
+        showToast(`✅ นำเข้าสำเร็จ! เพิ่ม ${added} ราย${skipped?' (ข้าม '+skipped+' ราย ซ้ำ/ว่าง)':''}`);
+      };
+      openModal('modal-alert');
+    }catch(err){
+      console.error(err);
+      showToast('❌ อ่านไฟล์ไม่สำเร็จ: '+err.message,'danger');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value='';
+}
+
+function parseWhtType(v){
+  v=String(v).trim();
+  if(v.includes('53'))return '53';
+  if(v.includes('3'))return '3';
+  return '';
+}
+
+function autoMatchCol(colName,fieldId){
+  const c=colName.toLowerCase();
+  const map={
+    'imp-name':['ชื่อ','name','supplier','บริษัท','ผู้ขาย','ร้าน'],
+    'imp-taxid':['เลขภาษี','taxid','tax','เลขผู้เสียภาษี','เลขประจำตัว','tax_id'],
+    'imp-address':['ที่อยู่','address','addr'],
+    'imp-phone':['โทร','phone','tel','เบอร์'],
+    'imp-type':['ประเภท','type','นิติ','บุคคล'],
+    'imp-paytype':['การชำระ','paytype','payment','ชำระ'],
+    'imp-whttype':['ภงด','wht','withholding','หัก'],
+    'imp-whtrate':['อัตรา','rate','%'],
+    'imp-bank':['ธนาคาร','bank'],
+    'imp-bankacc':['เลขบัญชี','account','acc'],
+    'imp-bankholder':['ชื่อบัญชี','holder','account_name'],
+  };
+  const keywords=map[fieldId]||[];
+  return keywords.some(k=>c.includes(k));
+}
+
+// ============================================================
 // MASTER: VEHICLE
 // ============================================================
 const vehTypeNames={service:'รถบริการช่าง',slide:'รถสไลด์',rental:'รถเช่า',sales:'รถเซลล์',other:'อื่นๆ'};
@@ -4709,8 +5659,11 @@ function exportExcel(){
   const ws=XLSX.utils.json_to_sheet(rows);
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'รายการจ่าย');
-  XLSX.writeFile(wb,'payment_export.xlsx');
-  showToast('Export Excel เรียบร้อย');
+  const from=document.getElementById('f-from')?.value||'';
+  const to=document.getElementById('f-to')?.value||'';
+  const fname='payment_export'+(from?'_'+from:'')+(to?'_'+to:'')+'.xlsx';
+  XLSX.writeFile(wb,fname);
+  showToast(`Export Excel เรียบร้อย (${filteredRecs.length} รายการ)`);
 }
 
 function renderRecords(){ filterRecords(); }
@@ -5010,6 +5963,13 @@ function deleteChecklistItem(id){
   });
 }
 
+// Back to Top button
+window.addEventListener('scroll',()=>{
+  const btn=document.getElementById('btn-back-top');
+  if(btn) btn.style.display=window.scrollY>300?'flex':'none';
+});
+
 </script>
+<button class="btn-back-top" id="btn-back-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="กลับด้านบน">▲</button>
 </body>
 </html>
