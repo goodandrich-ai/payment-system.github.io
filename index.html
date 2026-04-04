@@ -1326,7 +1326,7 @@ tr.due-soon td { background: #fffbeb !important; }
 </div>
 
 <!-- Alert / Confirm Modal -->
-<div class="modal-overlay" id="modal-alert">
+<div class="modal-overlay" id="modal-alert" style="z-index:300;">
   <div class="modal modal-sm">
     <div id="modal-alert-content" style="padding:8px 0;font-size:14px;text-align:center"></div>
     <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
@@ -2846,36 +2846,37 @@ function viewRecordFiles(id) {
 
 function voidRecord(id) {
   closeModal('modal-view');
-  showAlert('⚠️ ยืนยันยกเลิกรายการนี้? (ข้อมูลยังคงอยู่ในระบบ)',true, ()=>{
-    const r=DB.records.find(x=>x.id===id);
-    if(r){
-      r.status='void';
-      if(r.whtDocId){const w=DB.whtDocs.find(x=>x.id===r.whtDocId);if(w)w.status='void';}
-      save(); renderRecords?filterRecords():null; updateNavBadges(); renderHeaderBalance();
-    }
-  });
+  setTimeout(()=>{
+    showAlert('⚠️ ยืนยันยกเลิกรายการนี้? (ข้อมูลยังคงอยู่ในระบบ)',true, ()=>{
+      const r=DB.records.find(x=>x.id===id);
+      if(r){
+        r.status='void';
+        if(r.whtDocId){const w=DB.whtDocs.find(x=>x.id===r.whtDocId);if(w)w.status='void';}
+        save(); filterRecords(); updateNavBadges(); renderHeaderBalance();
+      }
+    });
+  },200);
 }
 
 function deleteRecordPermanent(id) {
-  closeModal('modal-view');
   const r=DB.records.find(x=>x.id===id);
   if(!r)return;
-  showAlert(`🗑️ <strong>ลบรายการ ${r.no} ถาวร?</strong><br><br>
-    <span style="font-size:12px;color:var(--danger)">⚠️ คำเตือน: รายการจะถูกลบออกจากระบบทั้งหมด ไม่สามารถกู้คืนได้</span><br>
-    <span style="font-size:12px">Supplier: ${r.supplier} | ยอด: ฿${fmt(r.total)}</span>`,true, ()=>{
-    // ลบ WHT doc ที่เกี่ยวข้อง
-    if(r.whtDocId){
-      DB.whtDocs=DB.whtDocs.filter(w=>w.id!==r.whtDocId);
-    }
-    // ลบ cashflow ที่เกี่ยวข้อง (credit-pay)
-    // ลบ record
-    DB.records=DB.records.filter(x=>x.id!==id);
-    save();
-    filterRecords();
-    updateNavBadges();
-    renderHeaderBalance();
-    showToast(`🗑️ ลบรายการ ${r.no} ถาวรแล้ว`);
-  });
+  closeModal('modal-view');
+  setTimeout(()=>{
+    showAlert(`🗑️ <strong>ลบรายการ ${r.no} ถาวร?</strong><br><br>
+      <span style="font-size:12px;color:var(--danger)">⚠️ คำเตือน: รายการจะถูกลบออกจากระบบทั้งหมด ไม่สามารถกู้คืนได้</span><br>
+      <span style="font-size:12px">Supplier: ${r.supplier} | ยอด: ฿${fmt(r.total)}</span>`,true, ()=>{
+      if(r.whtDocId){
+        DB.whtDocs=DB.whtDocs.filter(w=>w.id!==r.whtDocId);
+      }
+      DB.records=DB.records.filter(x=>x.id!==id);
+      save();
+      filterRecords();
+      updateNavBadges();
+      renderHeaderBalance();
+      showToast(`🗑️ ลบรายการ ${r.no} ถาวรแล้ว`);
+    });
+  },200);
 }
 
 function openEditModal(id) {
