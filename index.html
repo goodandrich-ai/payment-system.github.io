@@ -1667,6 +1667,8 @@ const SYNC = {
   // เรียกหลัง save() ทุกครั้ง — debounce 2 วินาที
   queueFullPush() {
     if (!GAS_URL) return;
+    // ตั้ง flag ทันทีว่ามีข้อมูลค้าง push (กัน refresh แล้วหาย)
+    localStorage.setItem('grp2_sync_pending', '1');
     if (this._timer) clearTimeout(this._timer);
     this._timer = setTimeout(() => this.pushAll(), 2000);
   },
@@ -1743,15 +1745,20 @@ const SYNC = {
           if (deletedList.length) {
             d[k] = d[k].filter(r => !deletedList.includes(String(r.id)));
           }
-          // คืน files (รูปภาพ) ที่เก็บใน localStorage ให้กับ record จาก Sheets
-          if (k === 'records') {
-            d.records = d.records.map(r => {
-              const local = DB.records.find(lr => String(lr.id) === String(r.id));
+          // MERGE: รวม local + remote แทนการทับทิ้ง
+          // — record ที่มีใน remote → ใช้ remote (เป็น source of truth)
+          // — record ที่มีเฉพาะใน local (ยังไม่ทัน push) → เก็บไว้
+          const remoteIds = new Set(d[k].map(r => String(r.id)));
+          const localOnly = (DB[k] || []).filter(r => !remoteIds.has(String(r.id)));
+          // คืน files (รูปภาพ) ที่เก็บใน IndexedDB ให้กับ record จาก Sheets
+          if (k === 'records' || k === 'bulkDocs') {
+            d[k] = d[k].map(r => {
+              const local = DB[k].find(lr => String(lr.id) === String(r.id));
               if (local && local.files && local.files.length) r.files = local.files;
               return r;
             });
           }
-          DB[k] = d[k];
+          DB[k] = [...d[k], ...localOnly];
         }
       });
 
@@ -1848,6 +1855,32 @@ const SYNC = {
     if (el) el.textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH');
   },
 }; // end SYNC
+
+// ก่อนปิด/รีเฟรชหน้า — flush pending push ด้วย sendBeacon (ไม่ block UI)
+window.addEventListener('beforeunload', () => {
+  if (GAS_URL && localStorage.getItem('grp2_sync_pending') === '1') {
+    // ใช้ sendBeacon เพราะ fetch อาจถูก cancel ตอนปิดหน้า
+    const collections = {
+      records: DB.records, whtDocs: DB.whtDocs, cashflows: DB.cashflows,
+      categories: DB.categories, suppliers: DB.suppliers, vehicles: DB.vehicles,
+      companies: DB.companies, dailyReports: DB.dailyReports, fixedItems: DB.fixedItems,
+      checklist: DB.checklist, bulkDocs: DB.bulkDocs,
+    };
+    for (const [key, rows] of Object.entries(collections)) {
+      if (!Array.isArray(rows) || rows.length === 0) continue;
+      const cleanRows = rows.map(r => {
+        const c = {...r}; delete c.files;
+        if (Array.isArray(c.editHistory) && c.editHistory.length > 20) c.editHistory = c.editHistory.slice(-20);
+        return c;
+      });
+      navigator.sendBeacon(GAS_URL, JSON.stringify({ action: 'bulkUpsert', sheet: key, data: cleanRows }));
+    }
+    navigator.sendBeacon(GAS_URL, JSON.stringify({ action: 'saveConfig', data: {
+      whtSeq: DB.whtSeq, recSeq: DB.recSeq, cashSeq: DB.cashSeq,
+      dailySeq: DB.dailySeq, fixedSeq: DB.fixedSeq, bulkDocSeq: DB.bulkDocSeq,
+    }}));
+  }
+});
 
 // เมื่อเน็ตกลับมา — flush pending changes
 window.addEventListener('online', () => {
@@ -1979,9 +2012,14 @@ window.onload = function() {
     console.log('✅ FileStore: rehydration complete');
   });
   // ดึงข้อมูลล่าสุดจาก Google Sheets ตอนเปิดเว็บ
+  // ถ้ามีข้อมูลค้าง push → push ก่อน แล้วค่อย pull (กันข้อมูลหาย)
   if (GAS_URL) {
     SYNC.setStatus('syncing');
-    SYNC.pull();
+    if (localStorage.getItem('grp2_sync_pending') === '1') {
+      SYNC.pushAll().then(() => SYNC.pull());
+    } else {
+      SYNC.pull();
+    }
   } else {
     SYNC.setStatus('idle');
   }
