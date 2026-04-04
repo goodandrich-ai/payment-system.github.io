@@ -2891,14 +2891,14 @@ function deleteRecordPermanent(id) {
   setTimeout(()=>{
     showAlert(`🗑️ <strong>ลบรายการ ${r.no} ถาวร?</strong><br><br>
       <span style="font-size:12px;color:var(--danger)">⚠️ คำเตือน: รายการจะถูกลบออกจากระบบทั้งหมด ไม่สามารถกู้คืนได้</span><br>
-      <span style="font-size:12px">Supplier: ${r.supplier} | ยอด: ฿${fmt(r.total)}</span>`,true, ()=>{
+      <span style="font-size:12px">Supplier: ${r.supplier} | ยอด: ฿${fmt(r.total)}</span>`,true, async()=>{
       if(r.whtDocId){
         const whtId=r.whtDocId;
         DB.whtDocs=DB.whtDocs.filter(w=>w.id!==whtId);
-        SYNC.deleteFromSheets('whtDocs', whtId);
+        await SYNC.deleteFromSheets('whtDocs', whtId);
       }
       DB.records=DB.records.filter(x=>x.id!==id);
-      SYNC.deleteFromSheets('records', id);
+      await SYNC.deleteFromSheets('records', id);
       save();
       filterRecords();
       updateNavBadges();
@@ -3175,9 +3175,9 @@ function deleteCashflowPermanent(id){
   const label=c.type==='receive'?'รับเงิน':c.type==='change'?'ทอนเงิน':'ชำระเครดิต';
   showAlert(`🗑️ <strong>ลบรายการ ${c.no} ถาวร?</strong><br><br>
     <span style="font-size:12px">ประเภท: ${label} | ยอด: ฿${fmt(c.amount)}</span><br>
-    <span style="font-size:12px;color:var(--danger)">⚠️ ไม่สามารถกู้คืนได้</span>`,true,()=>{
+    <span style="font-size:12px;color:var(--danger)">⚠️ ไม่สามารถกู้คืนได้</span>`,true,async()=>{
     DB.cashflows=DB.cashflows.filter(x=>x.id!==id);
-    SYNC.deleteFromSheets('cashflows', id);
+    await SYNC.deleteFromSheets('cashflows', id);
     save();
     renderReceiveHistory();
     renderBalance();
