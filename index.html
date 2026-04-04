@@ -1655,6 +1655,7 @@ const GEMINI_API_KEY = 'AIzaSyAlXFpqAdGmrJYelm8uafco3XUt9EB0Mmw';
 const SYNC = {
   _timer: null,
   _pending: false,   // รอ push อยู่
+  _deletedIds: JSON.parse(localStorage.getItem('grp2_deleted_ids')||'{}'), // {records:[id,...], cashflows:[id,...], ...}
 
   // เรียกหลัง save() ทุกครั้ง — debounce 2 วินาที
   queueFullPush() {
@@ -1730,6 +1731,11 @@ const SYNC = {
                          'vehicles','companies','dailyReports','fixedItems','checklist','bulkDocs'];
       arrayKeys.forEach(k => {
         if (Array.isArray(d[k]) && d[k].length > 0) {
+          // กรอง ID ที่ลบถาวรแล้วออก (กัน pull เอากลับมา)
+          const deletedList = this._deletedIds[k] || [];
+          if (deletedList.length) {
+            d[k] = d[k].filter(r => !deletedList.includes(String(r.id)));
+          }
           // คืน files (รูปภาพ) ที่เก็บใน localStorage ให้กับ record จาก Sheets
           if (k === 'records') {
             d.records = d.records.map(r => {
@@ -1784,11 +1790,21 @@ const SYNC = {
     localStorage.setItem('grp2_bulk_seq',   DB.bulkDocSeq);
   },
 
-  // ลบรายการจาก Google Sheets
+  // ลบรายการจาก Google Sheets + จำ ID ไว้กัน pull เอากลับมา
   async deleteFromSheets(sheetKey, id) {
+    // จำ ID ที่ลบไว้ทันที (กัน pull เอากลับมา)
+    if(!this._deletedIds[sheetKey]) this._deletedIds[sheetKey]=[];
+    this._deletedIds[sheetKey].push(String(id));
+    localStorage.setItem('grp2_deleted_ids', JSON.stringify(this._deletedIds));
+
     if (!GAS_URL || !navigator.onLine) return;
     try {
       await this._post({ action: 'delete', sheet: sheetKey, id: id });
+      // ลบสำเร็จแล้ว — เอา ID ออกจาก deleted list หลัง 60 วินาที (รอ pull รอบถัดไป)
+      setTimeout(()=>{
+        this._deletedIds[sheetKey]=(this._deletedIds[sheetKey]||[]).filter(x=>x!==String(id));
+        localStorage.setItem('grp2_deleted_ids', JSON.stringify(this._deletedIds));
+      },60000);
     } catch(e) {
       console.error('SYNC delete error:', e);
     }
