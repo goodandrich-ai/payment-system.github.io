@@ -1013,17 +1013,24 @@ tr.due-soon td { background: #fffbeb !important; }
 
   <!-- Supplier -->
   <div id="master-supplier">
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;">
-      <button class="btn btn-accent btn-sm" onclick="document.getElementById('import-supplier-file').click()">📥 นำเข้าจาก Excel</button>
-      <input type="file" id="import-supplier-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importSupplierExcel(this)">
-      <button class="btn btn-primary btn-sm" onclick="openSupplierModal()">➕ เพิ่ม Supplier</button>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div class="form-group" style="flex:1;min-width:200px;margin-bottom:0">
+        <label>🔍 ค้นหา Supplier</label>
+        <input type="text" id="supp-search" placeholder="พิมพ์ชื่อ / เลขภาษี..." oninput="suppPage=1;renderSuppliers()">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-accent btn-sm" onclick="document.getElementById('import-supplier-file').click()">📥 นำเข้าจาก Excel</button>
+        <input type="file" id="import-supplier-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importSupplierExcel(this)">
+        <button class="btn btn-primary btn-sm" onclick="openSupplierModal()">➕ เพิ่ม Supplier</button>
+      </div>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>รหัส</th><th>ชื่อ</th><th>เลขภาษี</th><th>ที่อยู่</th><th>โทร</th><th>ประเภท</th><th>การชำระ</th><th>📄 ภงด./อัตรา</th><th>🏦 ธนาคาร</th><th>จัดการ</th></tr></thead>
+        <thead><tr><th style="width:28px">#</th><th>รหัส</th><th>ชื่อ</th><th>เลขภาษี</th><th>ที่อยู่</th><th>โทร</th><th>ประเภท</th><th>การชำระ</th><th>📄 ภงด./อัตรา</th><th>🏦 ธนาคาร</th><th>จัดการ</th></tr></thead>
         <tbody id="supplier-tbody"></tbody>
       </table>
     </div>
+    <div class="pagination" id="supplier-pagination"></div>
   </div>
 
   <!-- Vehicle -->
@@ -5326,8 +5333,9 @@ function saveEditDaily(){
 }
 
 function deleteDailyReport(id){
-  showAlert('⚠️ ต้องการลบรายการเบิกนี้?',true,()=>{
+  showAlert('⚠️ ต้องการลบรายการเบิกนี้?',true,async()=>{
     DB.dailyReports=DB.dailyReports.filter(x=>x.id!==id);
+    await SYNC.deleteFromSheets('dailyReports', id);
     save(); renderDailyHistory();
   });
 }
@@ -5390,8 +5398,18 @@ function renderSummary(){
 // ============================================================
 // MASTER: SUPPLIER
 // ============================================================
+let suppPage=1, suppPP=20;
 function renderSuppliers(){
-  document.getElementById('supplier-tbody').innerHTML=DB.suppliers.map(s=>`<tr>
+  const kw=(document.getElementById('supp-search')?.value||'').toLowerCase();
+  let list=DB.suppliers;
+  if(kw) list=list.filter(s=>(s.name||'').toLowerCase().includes(kw)||(s.taxId||'').includes(kw)||(s.phone||'').includes(kw));
+
+  const total=list.length;
+  const start=(suppPage-1)*suppPP;
+  const pageList=list.slice(start,start+suppPP);
+
+  document.getElementById('supplier-tbody').innerHTML=pageList.map((s,i)=>`<tr>
+    <td style="color:var(--text-muted);font-size:10px;text-align:center">${start+i+1}</td>
     <td style="font-size:11px;color:var(--text-muted)">S-${String(s.id).padStart(4,'0')}</td>
     <td><strong>${s.name}</strong></td>
     <td style="font-size:12px">${s.taxId||'-'}</td>
@@ -5405,7 +5423,25 @@ function renderSuppliers(){
       <button class="btn btn-outline btn-xs" onclick="openSupplierModal(${s.id})">✏️</button>
       <button class="btn btn-danger btn-xs" onclick="delSupplier(${s.id})">🗑️</button>
     </td>
-  </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">ยังไม่มีข้อมูล</td></tr>';
+  </tr>`).join('')||'<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:20px">ยังไม่มีข้อมูล</td></tr>';
+
+  // Pagination
+  const pg=document.getElementById('supplier-pagination');
+  const totalPg=Math.ceil(total/suppPP);
+  pg.innerHTML='';
+  const info=document.createElement('span');info.style.cssText='font-size:11px;color:var(--text-muted);margin-right:10px';
+  info.textContent=`${total} รายการ`;pg.appendChild(info);
+  if(totalPg>1){
+    for(let i=1;i<=Math.min(totalPg,10);i++){
+      const btn=document.createElement('button');btn.className='page-btn'+(i===suppPage?' active':'');btn.textContent=i;
+      btn.onclick=()=>{suppPage=i;renderSuppliers();window.scrollTo({top:0,behavior:'smooth'});};pg.appendChild(btn);
+    }
+    if(totalPg>10){
+      const dots=document.createElement('span');dots.textContent='...';dots.style.cssText='padding:0 4px;color:var(--text-muted)';pg.appendChild(dots);
+      const bLast=document.createElement('button');bLast.className='page-btn';bLast.textContent=totalPg;
+      bLast.onclick=()=>{suppPage=totalPg;renderSuppliers();window.scrollTo({top:0,behavior:'smooth'});};pg.appendChild(bLast);
+    }
+  }
 }
 function openSupplierModal(id){
   const s=id?DB.suppliers.find(x=>x.id===id):null;
@@ -5445,7 +5481,11 @@ function saveSupplier(){
   save();closeModal('modal-supplier');renderSuppliers();showToast('บันทึก Supplier แล้ว');
 }
 function delSupplier(id){
-  showAlert('⚠️ ลบ Supplier นี้?',true,()=>{DB.suppliers=DB.suppliers.filter(x=>x.id!==id);save();renderSuppliers();populateBulkSuppliers();});
+  showAlert('⚠️ ลบ Supplier นี้?',true,async()=>{
+    DB.suppliers=DB.suppliers.filter(x=>x.id!==id);
+    await SYNC.deleteFromSheets('suppliers', id);
+    save();renderSuppliers();populateBulkSuppliers();
+  });
 }
 
 // ============================================================
@@ -5613,7 +5653,12 @@ function saveVehicle(){
   save();closeModal('modal-vehicle');renderVehicles();populateVehicleDropdowns();showToast('บันทึกทะเบียนรถแล้ว');
 }
 function delVehicle(plate){
-  showAlert(`⚠️ ลบทะเบียน ${plate}?`,true,()=>{DB.vehicles=DB.vehicles.filter(x=>x.plate!==plate);save();renderVehicles();populateVehicleDropdowns();});
+  showAlert(`⚠️ ลบทะเบียน ${plate}?`,true,async()=>{
+    const v=DB.vehicles.find(x=>x.plate===plate);
+    DB.vehicles=DB.vehicles.filter(x=>x.plate!==plate);
+    if(v&&v.id) await SYNC.deleteFromSheets('vehicles', v.id);
+    save();renderVehicles();populateVehicleDropdowns();
+  });
 }
 
 // ============================================================
@@ -5937,8 +5982,9 @@ function renderFixedItems(){
 }
 
 function deleteFixedItem(id){
-  showAlert('⚠️ ลบรายการนี้?',true,()=>{
+  showAlert('⚠️ ลบรายการนี้?',true,async()=>{
     DB.fixedItems=DB.fixedItems.filter(x=>x.id!==id);
+    await SYNC.deleteFromSheets('fixedItems', id);
     save();renderCalendar();renderFixedItems();
   });
 }
@@ -6029,8 +6075,9 @@ function editChecklistItem(id){
 }
 
 function deleteChecklistItem(id){
-  showAlert('⚠️ ลบรายการนี้?',true,()=>{
+  showAlert('⚠️ ลบรายการนี้?',true,async()=>{
     DB.checklist=DB.checklist.filter(x=>x.id!==id);
+    await SYNC.deleteFromSheets('checklist', id);
     save();renderChecklist();
   });
 }
