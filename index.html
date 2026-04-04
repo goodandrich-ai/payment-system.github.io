@@ -1124,7 +1124,8 @@ tr.due-soon td { background: #fffbeb !important; }
     <div id="modal-view-content"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modal-view')">ปิด</button>
-      <button class="btn btn-danger btn-sm" id="btn-void" style="margin-right:auto">🚫 ยกเลิก</button>
+      <button class="btn btn-danger btn-sm" id="btn-void">🚫 ยกเลิก</button>
+      <button class="btn btn-outline btn-sm" id="btn-delete" style="margin-right:auto;color:var(--danger);border-color:var(--danger)">🗑️ ลบถาวร</button>
       <button class="btn btn-outline" id="btn-print-voucher" onclick="printPaymentVoucher(currentViewId)">🖨️ ใบสำคัญจ่าย</button>
       <button class="btn btn-primary" id="btn-edit">✏️ แก้ไข</button>
     </div>
@@ -2810,6 +2811,8 @@ function viewRecord(id) {
 
   document.getElementById('btn-void').onclick=()=>voidRecord(id);
   document.getElementById('btn-void').style.display=r.status==='void'?'none':'';
+  document.getElementById('btn-delete').onclick=()=>deleteRecordPermanent(id);
+  document.getElementById('btn-delete').style.display='';
   document.getElementById('btn-edit').onclick=()=>openEditModal(id);
   document.getElementById('btn-edit').style.display=r.status==='void'?'none':'';
   // ใบสำคัญจ่าย: เครดิตที่ยังไม่จ่าย ไม่สามารถออกได้ (ต้องทำรวมยอดจ่าย Supplier ก่อน)
@@ -2850,6 +2853,28 @@ function voidRecord(id) {
       if(r.whtDocId){const w=DB.whtDocs.find(x=>x.id===r.whtDocId);if(w)w.status='void';}
       save(); renderRecords?filterRecords():null; updateNavBadges(); renderHeaderBalance();
     }
+  });
+}
+
+function deleteRecordPermanent(id) {
+  closeModal('modal-view');
+  const r=DB.records.find(x=>x.id===id);
+  if(!r)return;
+  showAlert(`🗑️ <strong>ลบรายการ ${r.no} ถาวร?</strong><br><br>
+    <span style="font-size:12px;color:var(--danger)">⚠️ คำเตือน: รายการจะถูกลบออกจากระบบทั้งหมด ไม่สามารถกู้คืนได้</span><br>
+    <span style="font-size:12px">Supplier: ${r.supplier} | ยอด: ฿${fmt(r.total)}</span>`,true, ()=>{
+    // ลบ WHT doc ที่เกี่ยวข้อง
+    if(r.whtDocId){
+      DB.whtDocs=DB.whtDocs.filter(w=>w.id!==r.whtDocId);
+    }
+    // ลบ cashflow ที่เกี่ยวข้อง (credit-pay)
+    // ลบ record
+    DB.records=DB.records.filter(x=>x.id!==id);
+    save();
+    filterRecords();
+    updateNavBadges();
+    renderHeaderBalance();
+    showToast(`🗑️ ลบรายการ ${r.no} ถาวรแล้ว`);
   });
 }
 
@@ -3089,7 +3114,7 @@ function renderReceiveHistory(resetPage){
       <td style="text-align:right;color:var(--text-muted);font-weight:700">-</td>
       <td style="text-align:right;font-weight:700;color:${running>=0?'var(--success)':'var(--danger)'}">฿${fmt(running)}</td>
       <td style="font-size:12px">${c.remark||'-'}</td>
-      <td><button class="btn btn-outline btn-xs" onclick="voidCashflow(${c.id})">🗑️</button></td>
+      <td><button class="btn btn-outline btn-xs" onclick="deleteCashflowPermanent(${c.id})" title="ลบถาวร">🗑️</button></td>
     </tr>`;
   }).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px">ยังไม่มีรายการ</td></tr>';
 
@@ -3111,6 +3136,22 @@ function voidCashflow(id){
   showAlert('⚠️ ต้องการลบรายการนี้?',true,()=>{
     const c=DB.cashflows.find(x=>x.id===id);
     if(c){c.status='void';save();renderReceiveHistory();renderBalance();renderHeaderBalance();}
+  });
+}
+
+function deleteCashflowPermanent(id){
+  const c=DB.cashflows.find(x=>x.id===id);
+  if(!c)return;
+  const label=c.type==='receive'?'รับเงิน':c.type==='change'?'ทอนเงิน':'ชำระเครดิต';
+  showAlert(`🗑️ <strong>ลบรายการ ${c.no} ถาวร?</strong><br><br>
+    <span style="font-size:12px">ประเภท: ${label} | ยอด: ฿${fmt(c.amount)}</span><br>
+    <span style="font-size:12px;color:var(--danger)">⚠️ ไม่สามารถกู้คืนได้</span>`,true,()=>{
+    DB.cashflows=DB.cashflows.filter(x=>x.id!==id);
+    save();
+    renderReceiveHistory();
+    renderBalance();
+    renderHeaderBalance();
+    showToast(`🗑️ ลบรายการ ${c.no} ถาวรแล้ว`);
   });
 }
 
