@@ -1784,6 +1784,16 @@ const SYNC = {
     localStorage.setItem('grp2_bulk_seq',   DB.bulkDocSeq);
   },
 
+  // ลบรายการจาก Google Sheets
+  async deleteFromSheets(sheetKey, id) {
+    if (!GAS_URL || !navigator.onLine) return;
+    try {
+      await this._post({ action: 'delete', sheet: sheetKey, id: id });
+    } catch(e) {
+      console.error('SYNC delete error:', e);
+    }
+  },
+
   async _post(body) {
     const res = await fetch(GAS_URL, {
       method: 'POST',
@@ -2867,9 +2877,12 @@ function deleteRecordPermanent(id) {
       <span style="font-size:12px;color:var(--danger)">⚠️ คำเตือน: รายการจะถูกลบออกจากระบบทั้งหมด ไม่สามารถกู้คืนได้</span><br>
       <span style="font-size:12px">Supplier: ${r.supplier} | ยอด: ฿${fmt(r.total)}</span>`,true, ()=>{
       if(r.whtDocId){
-        DB.whtDocs=DB.whtDocs.filter(w=>w.id!==r.whtDocId);
+        const whtId=r.whtDocId;
+        DB.whtDocs=DB.whtDocs.filter(w=>w.id!==whtId);
+        SYNC.deleteFromSheets('whtDocs', whtId);
       }
       DB.records=DB.records.filter(x=>x.id!==id);
+      SYNC.deleteFromSheets('records', id);
       save();
       filterRecords();
       updateNavBadges();
@@ -3148,6 +3161,7 @@ function deleteCashflowPermanent(id){
     <span style="font-size:12px">ประเภท: ${label} | ยอด: ฿${fmt(c.amount)}</span><br>
     <span style="font-size:12px;color:var(--danger)">⚠️ ไม่สามารถกู้คืนได้</span>`,true,()=>{
     DB.cashflows=DB.cashflows.filter(x=>x.id!==id);
+    SYNC.deleteFromSheets('cashflows', id);
     save();
     renderReceiveHistory();
     renderBalance();
